@@ -246,14 +246,12 @@ export default function AppPage(): React.JSX.Element {
         return;
       }
 
-      // Get frontmost app for context-aware dictation
-      const frontmostApp = await window.api
-        ?.getFrontmostApp()
-        .catch(() => null);
+      // Get frontmost app context for context-aware dictation
+      const appContext = await window.api?.getFrontmostApp().catch(() => null);
       const headers: Record<string, string> = {
         "Content-Type": "audio/wav",
       };
-      if (frontmostApp) headers["x-frontmost-app"] = frontmostApp;
+      if (appContext) headers["x-app-context"] = appContext;
 
       const res = await fetch(`${getApiBase()}/api/transcribe`, {
         method: "POST",

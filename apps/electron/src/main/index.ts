@@ -626,21 +626,69 @@ app.whenReady().then(() => {
     }
   });
 
-  // -- Context-aware dictation: get frontmost app name --
+  // -- Context-aware dictation: get frontmost app + browser context --
   ipcMain.handle("system:frontmost-app", async () => {
-    if (process.platform === "darwin") {
-      try {
-        const { execSync } = require("node:child_process");
-        const name = execSync(
-          `osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'`,
-          { encoding: "utf-8" },
-        ).trim();
-        return name;
-      } catch {
-        return null;
+    if (process.platform !== "darwin") return null;
+
+    try {
+      const { execSync } = require("node:child_process");
+      const appName = execSync(
+        `osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'`,
+        { encoding: "utf-8" },
+      ).trim();
+
+      // For browsers, try to get the active tab URL and title
+      const browsers = [
+        "Google Chrome",
+        "Safari",
+        "Arc",
+        "Firefox",
+        "Brave Browser",
+        "Microsoft Edge",
+      ];
+
+      if (browsers.includes(appName)) {
+        try {
+          let script: string;
+          if (appName === "Safari") {
+            script = `tell application "Safari" to return {URL of current tab of front window, name of current tab of front window}`;
+          } else if (appName === "Firefox") {
+            // Firefox doesn't support AppleScript tab access well
+            script = `tell application "System Events" to get name of front window of application process "Firefox"`;
+          } else {
+            // Chrome, Arc, Brave, Edge all use Chromium AppleScript
+            script = `tell application "${appName}" to return {URL of active tab of front window, title of active tab of front window}`;
+          }
+
+          const result = execSync(`osascript -e '${script}'`, {
+            encoding: "utf-8",
+            timeout: 2000,
+          }).trim();
+
+          if (appName === "Firefox") {
+            // Firefox only gives window title
+            return JSON.stringify({
+              app: appName,
+              windowTitle: result,
+            });
+          }
+
+          // Parse "url, title" from AppleScript list result
+          const commaIdx = result.indexOf(", ");
+          if (commaIdx > 0) {
+            const url = result.substring(0, commaIdx);
+            const title = result.substring(commaIdx + 2);
+            return JSON.stringify({ app: appName, url, title });
+          }
+        } catch {
+          // Fall back to just app name
+        }
       }
+
+      return JSON.stringify({ app: appName });
+    } catch {
+      return null;
     }
-    return null;
   });
 
   // -- Pill position setting --
@@ -682,7 +730,6 @@ app.whenReady().then(() => {
 
   // Listen for hotkey changes from the settings UI
   ipcMain.on("hotkey:update", (_event, newHotkey: string) => {
-    console.log(`[hotkey] Received update from settings: "${newHotkey}"`);
     registerHotkey(newHotkey);
   });
 });
@@ -828,10 +875,6 @@ function registerHotkey(hotkey?: string): void {
   const accel = hotkey && isValidAccelerator(hotkey) ? hotkey : DEFAULT_HOTKEY;
   currentHotkeyAccel = accel;
   const { modifiers, key: triggerKey } = parseAccelerator(accel);
-
-  console.log(
-    `[hotkey] Registering: "${accel}" -> key="${triggerKey}", modifiers=[${Array.from(modifiers).join(", ")}]`,
-  );
 
   keyListener = new GlobalKeyboardListener();
 

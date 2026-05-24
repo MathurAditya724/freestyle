@@ -11,6 +11,7 @@ import {
   Search,
   Sparkles,
   Trash2,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -192,11 +193,15 @@ export default function ModelsPage(): React.JSX.Element {
   const selectModel = useCallback(
     async (model: AvailableModel, type: "voice" | "llm") => {
       if (!keyProviders.has(model.provider_id)) {
+        // Show the API key dialog
         setPendingModel(model);
         setPendingKeyProvider(model.provider_id);
         setPendingKeyValue("");
         setShowPendingKey(false);
         setPendingModelType(type);
+        // Close dropdowns so the dialog is clearly visible
+        setVoiceDropdownOpen(false);
+        setLlmDropdownOpen(false);
         return;
       }
 
@@ -309,117 +314,71 @@ export default function ModelsPage(): React.JSX.Element {
 
     return (
       <div className="border-border bg-card absolute z-20 mt-1 max-h-72 w-full overflow-hidden rounded-lg border shadow-lg">
-        {/* Inline API key prompt */}
-        {pendingKeyProvider && pendingModel && pendingModelType === type && (
-          <div className="border-border border-b p-3">
-            <p className="mb-2 text-xs font-medium">
-              Enter API key for{" "}
-              <span className="text-foreground font-semibold">
-                {displayName(pendingKeyProvider, pendingModel.provider_name)}
-              </span>
-            </p>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input
-                  type={showPendingKey ? "text" : "password"}
-                  value={pendingKeyValue}
-                  onChange={(e) => setPendingKeyValue(e.target.value)}
-                  placeholder="sk-..."
-                  className="border-border bg-background w-full rounded border px-2.5 py-1.5 pr-8 font-mono text-xs"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") savePendingKeyAndModel();
-                    if (e.key === "Escape") closePendingKey();
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPendingKey(!showPendingKey)}
-                  className="text-muted-foreground hover:text-foreground absolute right-2 top-1/2 -translate-y-1/2"
-                >
-                  {showPendingKey ? <EyeOff size={12} /> : <Eye size={12} />}
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={savePendingKeyAndModel}
-                disabled={!pendingKeyValue.trim()}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-              >
-                Save
-              </button>
-            </div>
+        {/* Search input */}
+        <div className="border-border border-b px-3 py-2">
+          <div className="relative">
+            <Search className="text-muted-foreground absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search models..."
+              className="bg-background w-full rounded border-none py-1 pl-7 pr-2 text-xs outline-none"
+            />
           </div>
-        )}
+        </div>
 
-        {!(pendingKeyProvider && pendingModelType === type) && (
-          <>
-            {/* Search input */}
-            <div className="border-border border-b px-3 py-2">
-              <div className="relative">
-                <Search className="text-muted-foreground absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search models..."
-                  className="bg-background w-full rounded border-none py-1 pl-7 pr-2 text-xs outline-none"
-                />
-              </div>
-            </div>
+        {/* Model list */}
+        <div className="max-h-56 overflow-y-auto">
+          {[...modelsByProvider.entries()].map(
+            ([providerId, { providerName, models }]) => {
+              const filtered = q
+                ? models.filter(
+                    (m) =>
+                      m.model_name.toLowerCase().includes(q) ||
+                      m.model_id.toLowerCase().includes(q) ||
+                      providerName.toLowerCase().includes(q),
+                  )
+                : models;
 
-            {/* Model list */}
-            <div className="max-h-56 overflow-y-auto">
-              {[...modelsByProvider.entries()].map(
-                ([providerId, { providerName, models }]) => {
-                  const filtered = q
-                    ? models.filter(
-                        (m) =>
-                          m.model_name.toLowerCase().includes(q) ||
-                          m.model_id.toLowerCase().includes(q) ||
-                          providerName.toLowerCase().includes(q),
-                      )
-                    : models;
+              if (filtered.length === 0) return null;
 
-                  if (filtered.length === 0) return null;
-
-                  return (
-                    <div key={providerId}>
-                      <div className="text-muted-foreground bg-secondary/50 sticky top-0 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider">
-                        {providerName}
-                        {!keyProviders.has(providerId) && (
-                          <span className="text-destructive ml-1.5 normal-case tracking-normal">
-                            (no API key)
-                          </span>
+              return (
+                <div key={providerId}>
+                  <div className="text-muted-foreground bg-secondary/50 sticky top-0 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider">
+                    {providerName}
+                    {!keyProviders.has(providerId) && (
+                      <span className="text-destructive ml-1.5 normal-case tracking-normal">
+                        (no API key)
+                      </span>
+                    )}
+                  </div>
+                  {filtered.slice(0, 20).map((model) => {
+                    const isActive =
+                      currentDefault?.model_id === model.model_id &&
+                      currentDefault?.provider === model.provider_id;
+                    return (
+                      <button
+                        key={model.model_id}
+                        type="button"
+                        onClick={() => selectModel(model, type)}
+                        className={cn(
+                          "hover:bg-secondary flex w-full items-center gap-2 px-3 py-2 text-left text-sm",
+                          isActive && "bg-primary/5",
                         )}
-                      </div>
-                      {filtered.slice(0, 20).map((model) => {
-                        const isActive =
-                          currentDefault?.model_id === model.model_id &&
-                          currentDefault?.provider === model.provider_id;
-                        return (
-                          <button
-                            key={model.model_id}
-                            type="button"
-                            onClick={() => selectModel(model, type)}
-                            className={cn(
-                              "hover:bg-secondary flex w-full items-center gap-2 px-3 py-2 text-left text-sm",
-                              isActive && "bg-primary/5",
-                            )}
-                          >
-                            <span className="flex-1">{model.model_name}</span>
-                            {isActive && (
-                              <Check size={14} className="text-primary" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  );
-                },
-              )}
-            </div>
-          </>
-        )}
+                      >
+                        <span className="flex-1">{model.model_name}</span>
+                        {isActive && (
+                          <Check size={14} className="text-primary" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            },
+          )}
+        </div>
       </div>
     );
   }
@@ -713,6 +672,83 @@ export default function ModelsPage(): React.JSX.Element {
           </div>
         )}
       </div>
+
+      {/* ================================================================= */}
+      {/* API Key Dialog (shared for voice + LLM)                           */}
+      {/* ================================================================= */}
+      {pendingKeyProvider && pendingModel && (
+        <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
+          <div className="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">API Key Required</h3>
+                <p className="text-muted-foreground mt-0.5 text-sm">
+                  To use{" "}
+                  <span className="text-foreground font-medium">
+                    {pendingModel.model_name}
+                  </span>
+                  , enter your{" "}
+                  <span className="text-foreground font-medium">
+                    {displayName(
+                      pendingKeyProvider,
+                      pendingModel.provider_name,
+                    )}
+                  </span>{" "}
+                  API key.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closePendingKey}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="relative">
+                <Key className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+                <input
+                  type={showPendingKey ? "text" : "password"}
+                  value={pendingKeyValue}
+                  onChange={(e) => setPendingKeyValue(e.target.value)}
+                  placeholder="sk-..."
+                  className="border-border bg-background w-full rounded-lg border py-2.5 pl-10 pr-10 font-mono text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && pendingKeyValue.trim())
+                      savePendingKeyAndModel();
+                    if (e.key === "Escape") closePendingKey();
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPendingKey(!showPendingKey)}
+                  className="text-muted-foreground hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
+                >
+                  {showPendingKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closePendingKey}
+                  className="border-border hover:bg-secondary rounded-lg border px-4 py-2 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={savePendingKeyAndModel}
+                  disabled={!pendingKeyValue.trim()}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+                >
+                  Save & Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -277,7 +277,7 @@ export default function GeneralSettingsPage(): React.JSX.Element {
           <select
             value={selectedDevice}
             onChange={(e) => handleDeviceChange(e.target.value)}
-            className="border-border bg-card text-foreground w-full max-w-sm rounded-lg border px-3 py-2 text-sm"
+            className="border-border bg-card text-foreground w-full max-w-sm appearance-auto rounded-lg border px-3 py-2 pr-8 text-sm"
           >
             <option value="">System default</option>
             {devices.map((d) => (
@@ -375,7 +375,7 @@ export default function GeneralSettingsPage(): React.JSX.Element {
           <select
             value={language}
             onChange={(e) => handleLanguageChange(e.target.value)}
-            className="border-border bg-card text-foreground w-full max-w-sm rounded-lg border px-3 py-2 text-sm"
+            className="border-border bg-card text-foreground w-full max-w-sm appearance-auto rounded-lg border px-3 py-2 pr-8 text-sm"
           >
             <option value="auto">Auto-detect</option>
             <option value="en">English</option>
