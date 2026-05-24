@@ -44,9 +44,6 @@ importers:
       '@react-three/fiber':
         specifier: ^9.6.1
         version: 9.6.1(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(three@0.184.0)
-      '@types/three':
-        specifier: ^0.184.1
-        version: 0.184.1
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -102,6 +99,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
+      '@types/three':
+        specifier: ^0.184.1
+        version: 0.184.1
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
