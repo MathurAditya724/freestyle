@@ -26,7 +26,7 @@ export class Streamer {
   private readonly wsUrl: string;
 
   constructor(baseUrl: string, callbacks: StreamerCallbacks) {
-    this.wsUrl = baseUrl.replace(/^http/, "ws") + "/stream";
+    this.wsUrl = `${baseUrl.replace(/^http/, "ws")}/stream`;
     this.callbacks = callbacks;
   }
 
@@ -71,7 +71,11 @@ export class Streamer {
     this.processor.onaudioprocess = (e) => {
       if (this.closed) return;
       const input = e.inputBuffer.getChannelData(0);
-      const pcm16 = downsampleAndEncode(input, this.ctx!.sampleRate, TARGET_RATE);
+      const pcm16 = downsampleAndEncode(
+        input,
+        this.ctx!.sampleRate,
+        TARGET_RATE,
+      );
       this.sendAudio(pcm16.buffer as ArrayBuffer);
     };
 
@@ -128,7 +132,13 @@ export class Streamer {
 
     ws.addEventListener("message", (e) => {
       if (typeof e.data !== "string") return;
-      let msg: { type: string; text?: string; message?: string; model?: string; streaming?: boolean };
+      let msg: {
+        type: string;
+        text?: string;
+        message?: string;
+        model?: string;
+        streaming?: boolean;
+      };
       try {
         msg = JSON.parse(e.data);
       } catch {
@@ -174,14 +184,20 @@ export class Streamer {
   }
 
   private stopCapture(): void {
-    try { this.processor?.disconnect(); } catch {}
-    try { this.source?.disconnect(); } catch {}
+    try {
+      this.processor?.disconnect();
+    } catch {}
+    try {
+      this.source?.disconnect();
+    } catch {}
     this.processor = null;
     this.source = null;
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
     if (this.ctx) {
-      try { this.ctx.close(); } catch {}
+      try {
+        this.ctx.close();
+      } catch {}
       this.ctx = null;
     }
   }

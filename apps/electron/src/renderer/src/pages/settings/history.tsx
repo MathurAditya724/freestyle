@@ -37,7 +37,7 @@ function formatDuration(ms: number): string {
 }
 
 function formatDate(iso: string): string {
-  const d = new Date(iso + "Z");
+  const d = new Date(`${iso}Z`);
   const now = new Date();
   const diff = now.getTime() - d.getTime();
 
@@ -118,10 +118,7 @@ export default function HistoryPage(): React.JSX.Element {
             label="Total Sessions"
             value={String(stats.total_sessions)}
           />
-          <StatCard
-            label="Today"
-            value={String(stats.today_sessions)}
-          />
+          <StatCard label="Today" value={String(stats.today_sessions)} />
           <StatCard
             label="Avg Latency"
             value={formatDuration(Math.round(stats.avg_duration_ms))}
@@ -180,7 +177,8 @@ export default function HistoryPage(): React.JSX.Element {
                       </span>
                       {entry.llm_model && (
                         <span className="mono text-[10px]">
-                          + {entry.llm_model.includes("/")
+                          +{" "}
+                          {entry.llm_model.includes("/")
                             ? entry.llm_model.split("/").pop()
                             : entry.llm_model}
                         </span>
@@ -207,13 +205,7 @@ export default function HistoryPage(): React.JSX.Element {
   );
 }
 
-function StatCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="border-border rounded-lg border px-3 py-2.5">
       <div className="text-muted-foreground text-[10px] font-medium uppercase tracking-wider">

@@ -10,9 +10,9 @@ export function initSchema(db: DatabaseSync): void {
     )
   `);
 
-  const row = db.prepare("SELECT version FROM schema_version WHERE id = 1").get() as
-    | { version: number }
-    | undefined;
+  const row = db
+    .prepare("SELECT version FROM schema_version WHERE id = 1")
+    .get() as { version: number } | undefined;
   const currentVersion = row?.version ?? 0;
 
   if (currentVersion < 1) {

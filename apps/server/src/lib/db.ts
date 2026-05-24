@@ -6,7 +6,7 @@ let db: DatabaseSync | null = null;
 export function getDb(): DatabaseSync {
   if (db) return db;
 
-  const dbPath = process.env["FREESTYLE_DB_PATH"];
+  const dbPath = process.env.FREESTYLE_DB_PATH;
   if (!dbPath) {
     throw new Error(
       "FREESTYLE_DB_PATH environment variable is required. Set it to the desired SQLite database file path.",

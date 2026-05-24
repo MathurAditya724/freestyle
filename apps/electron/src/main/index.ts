@@ -1,9 +1,9 @@
+import type { Server } from "node:http";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { electronApp, is, optimizer } from "@electron-toolkit/utils";
 import server from "@freestyle/server";
 import { serve } from "@hono/node-server";
-import { GlobalKeyboardListener } from "node-global-key-listener";
-import type { IGlobalKeyEvent, IGlobalKeyDownMap } from "node-global-key-listener";
-import { WebSocketServer } from "ws";
 import {
   app,
   BrowserWindow,
@@ -16,9 +16,12 @@ import {
   shell,
   Tray,
 } from "electron";
-import type { Server } from "node:http";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import type {
+  IGlobalKeyDownMap,
+  IGlobalKeyEvent,
+} from "node-global-key-listener";
+import { GlobalKeyboardListener } from "node-global-key-listener";
+import { WebSocketServer } from "ws";
 import icon from "../../resources/icon.png?asset";
 import trayIconPath from "../../resources/tray/logoTemplate.png?asset";
 import { pasteIntoFocusedApp } from "./paste";
@@ -68,8 +71,8 @@ function registerAppProtocol(): void {
 }
 
 function getRendererURL(path = "/"): string {
-  if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
-    return `${process.env["ELECTRON_RENDERER_URL"]}${path}`;
+  if (is.dev && process.env.ELECTRON_RENDERER_URL) {
+    return `${process.env.ELECTRON_RENDERER_URL}${path}`;
   }
   return `app://renderer${path}`;
 }
@@ -255,10 +258,7 @@ app.whenReady().then(() => {
   ipcMain.on("ping", () => console.log("pong"));
 
   // Set database path for the server before any API calls
-  process.env["FREESTYLE_DB_PATH"] = join(
-    app.getPath("userData"),
-    "freestyle.db",
-  );
+  process.env.FREESTYLE_DB_PATH = join(app.getPath("userData"), "freestyle.db");
 
   // Start the Hono HTTP server with WebSocket support
   const wss = new WebSocketServer({ noServer: true });
@@ -334,8 +334,7 @@ function parseAccelerator(accel: string): HotkeyParts {
     right: "RIGHT ARROW",
   };
 
-  const mappedKey =
-    keyMap[key.toLowerCase()] || key.toUpperCase();
+  const mappedKey = keyMap[key.toLowerCase()] || key.toUpperCase();
 
   return { modifiers, key: mappedKey };
 }
@@ -355,12 +354,12 @@ function modifiersMatch(
     if (seen.has(mod)) continue;
     // Find the paired variant
     if (mod.startsWith("LEFT ")) {
-      const right = "RIGHT " + mod.slice(5);
+      const right = `RIGHT ${mod.slice(5)}`;
       groups.push([mod, right]);
       seen.add(mod);
       seen.add(right);
     } else if (mod.startsWith("RIGHT ")) {
-      const left = "LEFT " + mod.slice(6);
+      const left = `LEFT ${mod.slice(6)}`;
       groups.push([left, mod]);
       seen.add(mod);
       seen.add(left);
@@ -389,7 +388,7 @@ function isValidAccelerator(accel: string): boolean {
 
 function loadHotkeyFromDB(): string | undefined {
   try {
-    const dbPath = process.env["FREESTYLE_DB_PATH"];
+    const dbPath = process.env.FREESTYLE_DB_PATH;
     if (dbPath) {
       const { DatabaseSync } = require("node:sqlite");
       const db = new DatabaseSync(dbPath);
@@ -419,16 +418,12 @@ function registerHotkey(hotkey?: string): void {
     hotkey = loadHotkeyFromDB();
   }
 
-  const accel =
-    hotkey && isValidAccelerator(hotkey) ? hotkey : DEFAULT_HOTKEY;
+  const accel = hotkey && isValidAccelerator(hotkey) ? hotkey : DEFAULT_HOTKEY;
   const { modifiers, key: triggerKey } = parseAccelerator(accel);
 
   keyListener = new GlobalKeyboardListener();
 
-  const listener = (
-    e: IGlobalKeyEvent,
-    isDown: IGlobalKeyDownMap,
-  ): void => {
+  const listener = (e: IGlobalKeyEvent, isDown: IGlobalKeyDownMap): void => {
     if (e.name !== triggerKey) return;
 
     if (e.state === "DOWN" && !hotkeyPressed) {

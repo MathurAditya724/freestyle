@@ -76,7 +76,11 @@ history.get("/stats", (c) => {
     )
     .get() as { sessions: number; cost: number };
 
-  return c.json({ ...stats, today_sessions: today.sessions, today_cost: today.cost });
+  return c.json({
+    ...stats,
+    today_sessions: today.sessions,
+    today_cost: today.cost,
+  });
 });
 
 // Get a single history entry

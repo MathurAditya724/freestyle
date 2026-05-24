@@ -148,10 +148,7 @@ async function resample(
   return rendered.getChannelData(0);
 }
 
-function encodeWav16(
-  samples: Float32Array,
-  sampleRate: number,
-): ArrayBuffer {
+function encodeWav16(samples: Float32Array, sampleRate: number): ArrayBuffer {
   const bytesPerSample = 2;
   const blockAlign = 1 * bytesPerSample;
   const byteRate = sampleRate * blockAlign;
@@ -182,6 +179,5 @@ function encodeWav16(
 }
 
 function writeString(view: DataView, offset: number, s: string): void {
-  for (let i = 0; i < s.length; i++)
-    view.setUint8(offset + i, s.charCodeAt(i));
+  for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i));
 }

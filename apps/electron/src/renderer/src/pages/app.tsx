@@ -1,8 +1,8 @@
-import { Check, Loader2, Mic } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
 import { Orb } from "@renderer/components/ui/orb";
 import { Recorder } from "@renderer/lib/recorder";
 import { Streamer } from "@renderer/lib/streamer";
+import { Check, Loader2, Mic } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const API_BASE = "http://localhost:4649";
 const BARS = 14;
@@ -87,7 +87,11 @@ export default function AppPage(): React.JSX.Element {
     cancelAnimationFrame(timerRef.current);
     timerRef.current = 0;
     if (ctxRef.current) {
-      try { ctxRef.current.close(); } catch (_) { /* ignore */ }
+      try {
+        ctxRef.current.close();
+      } catch (_) {
+        /* ignore */
+      }
       ctxRef.current = null;
     }
     setBars(new Array(BARS).fill(0));
@@ -138,7 +142,11 @@ export default function AppPage(): React.JSX.Element {
               await window.api.pasteText(text);
               setState("pasted");
               setMessage(text.length > 40 ? `${text.slice(0, 40)}...` : text);
-              setTimeout(() => { setState("idle"); setMessage(""); setPartialText(""); }, 1500);
+              setTimeout(() => {
+                setState("idle");
+                setMessage("");
+                setPartialText("");
+              }, 1500);
             }
           },
           onError: () => {},
@@ -209,11 +217,18 @@ export default function AppPage(): React.JSX.Element {
       await window.api.pasteText(text);
       setState("pasted");
       setMessage(text.length > 40 ? `${text.slice(0, 40)}...` : text);
-      setTimeout(() => { setState("idle"); setMessage(""); setPartialText(""); }, 1500);
+      setTimeout(() => {
+        setState("idle");
+        setMessage("");
+        setPartialText("");
+      }, 1500);
     } catch (err) {
       setState("error");
       setMessage(err instanceof Error ? err.message : "Transcription failed");
-      setTimeout(() => { setState("idle"); setMessage(""); }, 2500);
+      setTimeout(() => {
+        setState("idle");
+        setMessage("");
+      }, 2500);
     }
   }, [useStreaming, stopVisualization]);
 
@@ -256,7 +271,7 @@ export default function AppPage(): React.JSX.Element {
       cancelRecording();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [cancelRecording]);
 
   // -- Render --
   const svgWidth = 140;
@@ -287,25 +302,40 @@ export default function AppPage(): React.JSX.Element {
       >
         <div
           className="inline-flex items-center gap-3"
-          style={{
-            height: 48,
-            padding: "0 10px",
-            borderRadius: 28,
-            background: "#27272a",
-            color: "#fafafa",
-            border: "1px solid rgba(161,161,170,0.15)",
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: 14,
-            fontWeight: 500,
-            minWidth: 200,
-            maxWidth: 420,
-            WebkitAppRegion: "no-drag",
-          } as React.CSSProperties}
+          style={
+            {
+              height: 48,
+              padding: "0 10px",
+              borderRadius: 28,
+              background: "#27272a",
+              color: "#fafafa",
+              border: "1px solid rgba(161,161,170,0.15)",
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: 14,
+              fontWeight: 500,
+              minWidth: 200,
+              maxWidth: 420,
+              WebkitAppRegion: "no-drag",
+            } as React.CSSProperties
+          }
         >
           {state === "recording" && (
             <>
-              <div style={{ width: 32, height: 32, borderRadius: "50%", overflow: "hidden", flexShrink: 0 }}>
-                <Orb colors={["#8AB62A", "#6B8F12"]} agentState="listening" getInputVolume={getInputVolume} className="h-full w-full" />
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  overflow: "hidden",
+                  flexShrink: 0,
+                }}
+              >
+                <Orb
+                  colors={["#8AB62A", "#6B8F12"]}
+                  agentState="listening"
+                  getInputVolume={getInputVolume}
+                  className="h-full w-full"
+                />
               </div>
 
               {/* Show partial text if streaming, otherwise show bars */}
@@ -325,26 +355,58 @@ export default function AppPage(): React.JSX.Element {
                   {partialText}
                 </span>
               ) : (
-                <svg width={svgWidth} height={svgHeight} viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ display: "block", flex: 1 }}>
+                <svg
+                  width={svgWidth}
+                  height={svgHeight}
+                  viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                  style={{ display: "block", flex: 1 }}
+                >
                   {bars.map((val, i) => {
                     const h = Math.max(2, val * svgHeight * 1.25);
                     const x = gap * (i + 0.5);
                     return (
-                      <line key={i} x1={x} y1={(svgHeight + h) / 2} x2={x} y2={(svgHeight - h) / 2} stroke="#a1a1aa" strokeWidth={barWidth} strokeLinecap="round" style={{ opacity: 0.5 + val * 0.5 }} />
+                      <line
+                        key={i}
+                        x1={x}
+                        y1={(svgHeight + h) / 2}
+                        x2={x}
+                        y2={(svgHeight - h) / 2}
+                        stroke="#a1a1aa"
+                        strokeWidth={barWidth}
+                        strokeLinecap="round"
+                        style={{ opacity: 0.5 + val * 0.5 }}
+                      />
                     );
                   })}
                 </svg>
               )}
 
-              <span className="mono" style={{ fontSize: 11, letterSpacing: "0.06em", opacity: 0.6, flexShrink: 0, color: "#a1a1aa", paddingRight: 6 }}>
+              <span
+                className="mono"
+                style={{
+                  fontSize: 11,
+                  letterSpacing: "0.06em",
+                  opacity: 0.6,
+                  flexShrink: 0,
+                  color: "#a1a1aa",
+                  paddingRight: 6,
+                }}
+              >
                 {formatTimer(elapsed)}
               </span>
             </>
           )}
 
           {state === "transcribing" && (
-            <div className="inline-flex items-center gap-2" style={{ padding: "0 8px" }}>
-              <Loader2 size={16} className="animate-spin" style={{ color: "#8AB62A" }} />
+            <div
+              className="inline-flex items-center gap-2"
+              style={{ padding: "0 8px" }}
+            >
+              <Loader2
+                size={16}
+                className="animate-spin"
+                style={{ color: "#8AB62A" }}
+              />
               <span style={{ color: "#a1a1aa", fontSize: 13 }}>
                 {partialText ? partialText.slice(-30) : "Transcribing..."}
               </span>
@@ -352,25 +414,55 @@ export default function AppPage(): React.JSX.Element {
           )}
 
           {state === "pasted" && (
-            <div className="inline-flex items-center gap-2" style={{ padding: "0 8px" }}>
+            <div
+              className="inline-flex items-center gap-2"
+              style={{ padding: "0 8px" }}
+            >
               <Check size={16} style={{ color: "#8AB62A" }} />
-              <span style={{ color: "#a1a1aa", fontSize: 13, maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span
+                style={{
+                  color: "#a1a1aa",
+                  fontSize: 13,
+                  maxWidth: 240,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {message || "Pasted"}
               </span>
             </div>
           )}
 
           {state === "error" && (
-            <div className="inline-flex items-center gap-2" style={{ padding: "0 8px" }}>
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#DD6E4E", flexShrink: 0 }} />
-              <span style={{ color: "#a1a1aa", fontSize: 13 }}>{message || "Error"}</span>
+            <div
+              className="inline-flex items-center gap-2"
+              style={{ padding: "0 8px" }}
+            >
+              <div
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  background: "#DD6E4E",
+                  flexShrink: 0,
+                }}
+              />
+              <span style={{ color: "#a1a1aa", fontSize: 13 }}>
+                {message || "Error"}
+              </span>
             </div>
           )}
 
           {state === "idle" && (
-            <div className="inline-flex items-center gap-2" style={{ padding: "0 8px" }}>
+            <div
+              className="inline-flex items-center gap-2"
+              style={{ padding: "0 8px" }}
+            >
               <Mic size={17} style={{ opacity: 0.5, color: "#a1a1aa" }} />
-              <span style={{ opacity: 0.5, color: "#a1a1aa" }}>Hold hotkey to record</span>
+              <span style={{ opacity: 0.5, color: "#a1a1aa" }}>
+                Hold hotkey to record
+              </span>
             </div>
           )}
         </div>

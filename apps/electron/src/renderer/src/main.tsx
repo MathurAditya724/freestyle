@@ -1,10 +1,10 @@
 import "./globals.css";
 
+import { TooltipProvider } from "@renderer/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
-import { TooltipProvider } from "@renderer/components/ui/tooltip";
 import App from "./App";
 
 createRoot(document.getElementById("root")!).render(

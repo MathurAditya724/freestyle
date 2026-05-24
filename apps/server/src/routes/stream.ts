@@ -1,12 +1,12 @@
-import { Hono } from "hono";
 import { upgradeWebSocket } from "@hono/node-server";
+import { Hono } from "hono";
+import { getDb } from "../lib/db.js";
+import { getDefaultModels } from "../lib/providers.js";
 import {
+  getApiKeyForProvider,
   openStreamingSession,
   supportsStreaming,
-  getApiKeyForProvider,
 } from "../lib/streaming-stt.js";
-import { getDefaultModels } from "../lib/providers.js";
-import { getDb } from "../lib/db.js";
 
 const stream = new Hono();
 
@@ -22,7 +22,12 @@ stream.get(
       onOpen(_event, ws) {
         const defaults = getDefaultModels();
         if (!defaults.voice) {
-          ws.send(JSON.stringify({ type: "error", message: "No voice model configured" }));
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              message: "No voice model configured",
+            }),
+          );
           ws.close();
           return;
         }
@@ -30,7 +35,12 @@ stream.get(
 
         const apiKey = getApiKeyForProvider(defaults.voice.provider);
         if (!apiKey) {
-          ws.send(JSON.stringify({ type: "error", message: `No API key for ${defaults.voice.provider}` }));
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              message: `No API key for ${defaults.voice.provider}`,
+            }),
+          );
           ws.close();
           return;
         }
@@ -39,9 +49,18 @@ stream.get(
           ? defaults.voice.model_id.split("/").pop()!
           : defaults.voice.model_id;
 
-        const canStream = supportsStreaming(defaults.voice.provider, defaults.voice.model_id);
+        const canStream = supportsStreaming(
+          defaults.voice.provider,
+          defaults.voice.model_id,
+        );
 
-        ws.send(JSON.stringify({ type: "config", model: modelShort, streaming: canStream }));
+        ws.send(
+          JSON.stringify({
+            type: "config",
+            model: modelShort,
+            streaming: canStream,
+          }),
+        );
 
         if (!canStream) {
           ws.close();
@@ -69,7 +88,12 @@ stream.get(
                     `INSERT INTO transcription_history
                      (raw_text, voice_provider, voice_model, duration_ms)
                      VALUES (?, ?, ?, ?)`,
-                  ).run(text, voiceDefaults!.provider, voiceDefaults!.model_id, Date.now() - startTime);
+                  ).run(
+                    text,
+                    voiceDefaults!.provider,
+                    voiceDefaults!.model_id,
+                    Date.now() - startTime,
+                  );
                 } catch (err) {
                   console.error("Failed to save history:", err);
                 }
@@ -94,8 +118,12 @@ stream.get(
         function cleanup(): void {
           if (closed) return;
           closed = true;
-          try { upstream?.close(); } catch {}
-          try { ws.close(); } catch {}
+          try {
+            upstream?.close();
+          } catch {}
+          try {
+            ws.close();
+          } catch {}
         }
       },
 
@@ -111,7 +139,11 @@ stream.get(
         // Text data = JSON command
         let msg: { type: string };
         try {
-          msg = JSON.parse(typeof event.data === "string" ? event.data : new TextDecoder().decode(event.data as ArrayBuffer));
+          msg = JSON.parse(
+            typeof event.data === "string"
+              ? event.data
+              : new TextDecoder().decode(event.data as ArrayBuffer),
+          );
         } catch {
           return;
         }
@@ -120,22 +152,30 @@ stream.get(
           upstream.commit();
         } else if (msg.type === "cancel") {
           closed = true;
-          try { upstream.close(); } catch {}
-          try { ws.close(); } catch {}
+          try {
+            upstream.close();
+          } catch {}
+          try {
+            ws.close();
+          } catch {}
         }
       },
 
       onClose() {
         if (!closed) {
           closed = true;
-          try { upstream?.close(); } catch {}
+          try {
+            upstream?.close();
+          } catch {}
         }
       },
 
       onError() {
         if (!closed) {
           closed = true;
-          try { upstream?.close(); } catch {}
+          try {
+            upstream?.close();
+          } catch {}
         }
       },
     };

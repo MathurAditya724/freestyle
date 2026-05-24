@@ -1,11 +1,11 @@
+import { generateText, experimental_transcribe as transcribe } from "ai";
 import { Hono } from "hono";
-import { experimental_transcribe as transcribe, generateText } from "ai";
-import {
-  getDefaultModels,
-  createTranscriptionModel,
-  createChatModel,
-} from "../lib/providers.js";
 import { getDb } from "../lib/db.js";
+import {
+  createChatModel,
+  createTranscriptionModel,
+  getDefaultModels,
+} from "../lib/providers.js";
 
 const transcribeRoute = new Hono();
 
@@ -36,7 +36,9 @@ transcribeRoute.post("/", async (c) => {
   const defaults = getDefaultModels();
   if (!defaults.voice) {
     return c.json(
-      { error: "No voice model configured. Go to Settings > Models to add one." },
+      {
+        error: "No voice model configured. Go to Settings > Models to add one.",
+      },
       400,
     );
   }

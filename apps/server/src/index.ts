@@ -1,11 +1,11 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import settings from "./routes/settings.js";
 import apiKeys from "./routes/api-keys.js";
-import models from "./routes/models.js";
-import transcribe from "./routes/transcribe.js";
 import history from "./routes/history.js";
+import models from "./routes/models.js";
+import settings from "./routes/settings.js";
 import stream from "./routes/stream.js";
+import transcribe from "./routes/transcribe.js";
 
 const app = new Hono();
 
