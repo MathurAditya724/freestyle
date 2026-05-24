@@ -96,46 +96,25 @@ export default function AppPage(): React.JSX.Element {
     setElapsed(0);
   }, []);
 
-  // -- Start recording (tries streaming first, falls back to REST) --
+  // -- Start recording --
   const startRecording = useCallback(async () => {
+    if (wantsMicRef.current) return; // Already recording
     wantsMicRef.current = true;
     setState("recording");
     setMessage("");
     setPartialText("");
 
     try {
-      // Try streaming first
-      const streamer = new Streamer(API_BASE, {
-        onConfig: (config) => {
-          setUseStreaming(config.streaming);
-        },
-        onReady: () => {},
-        onPartial: (text) => setPartialText(text),
-        onFinal: async (text) => {
-          if (text.trim()) {
-            await window.api.pasteText(text);
-            setState("pasted");
-            setMessage(text.length > 40 ? `${text.slice(0, 40)}...` : text);
-            setTimeout(() => { setState("idle"); setMessage(""); setPartialText(""); }, 1500);
-          } else {
-            setState("idle");
-            setPartialText("");
-          }
-        },
-        onError: (msg) => {
-          // If streaming fails during setup, fall back to REST recorder
-          console.warn("Streaming error:", msg);
-        },
-      });
-
-      streamerRef.current = streamer;
-      const stream = await streamer.start();
+      // Start the recorder (captures audio for REST transcription)
+      const stream = await recorderRef.current.start();
+      console.log("[pill] Recorder started, got stream");
 
       if (!wantsMicRef.current) {
-        streamer.close();
+        recorderRef.current.cancel();
         return;
       }
 
+      // Start timer
       startTimeRef.current = Date.now();
       const updateTimer = () => {
         if (!wantsMicRef.current) return;
@@ -144,18 +123,43 @@ export default function AppPage(): React.JSX.Element {
       };
       timerRef.current = requestAnimationFrame(updateTimer);
 
+      // Start visualization from the recorder's stream
       startVisualization(stream);
 
-      // Also start the Recorder as fallback for non-streaming models
+      // Try to also open a streaming connection for real-time partial text
       try {
-        await recorderRef.current.start();
-      } catch {
-        // Recorder might fail if mic is already held by Streamer -- that's ok
+        const streamer = new Streamer(API_BASE, {
+          onConfig: (config) => {
+            console.log("[pill] Stream config:", config);
+            setUseStreaming(config.streaming);
+          },
+          onReady: () => console.log("[pill] Stream ready"),
+          onPartial: (text) => setPartialText(text),
+          onFinal: async (text) => {
+            console.log("[pill] Stream final:", text.slice(0, 50));
+            if (text.trim()) {
+              await window.api.pasteText(text);
+              setState("pasted");
+              setMessage(text.length > 40 ? `${text.slice(0, 40)}...` : text);
+              setTimeout(() => { setState("idle"); setMessage(""); setPartialText(""); }, 1500);
+            }
+          },
+          onError: (msg) => console.warn("[pill] Stream error:", msg),
+        });
+        streamerRef.current = streamer;
+        // Start the streamer's mic separately (it gets its own stream)
+        await streamer.start();
+        console.log("[pill] Streamer connected");
+      } catch (streamErr) {
+        // Streaming is optional -- REST fallback always works
+        console.warn("[pill] Streaming unavailable, will use REST:", streamErr);
+        streamerRef.current = null;
       }
     } catch (err) {
-      console.error("Failed to start recording:", err);
+      console.error("[pill] Failed to start recording:", err);
+      wantsMicRef.current = false;
       setState("error");
-      setMessage("Mic access denied");
+      setMessage(err instanceof Error ? err.message : "Mic access denied");
       setTimeout(() => setState("idle"), 2500);
     }
   }, [startVisualization]);
@@ -231,29 +235,48 @@ export default function AppPage(): React.JSX.Element {
     setPartialText("");
   }, [stopVisualization]);
 
+  // Track state in a ref so event handlers don't need state in their deps
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   // -- Visibility management --
   useEffect(() => {
     const ipc = window.electron?.ipcRenderer;
     if (!ipc) return;
     const handler = (_: unknown, isVisible: boolean) => {
-      if (isVisible && state === "idle") startRecording();
-      else if (!isVisible && state === "recording") cancelRecording();
+      console.log("[pill] IPC visibility:", isVisible, "state:", stateRef.current);
+      if (isVisible && stateRef.current === "idle") startRecording();
+      else if (!isVisible && stateRef.current === "recording") cancelRecording();
     };
     ipc.on("pill:visibility", handler);
     return () => { ipc.removeListener("pill:visibility", handler); };
-  }, [startRecording, cancelRecording, state]);
+  }, [startRecording, cancelRecording]);
 
   useEffect(() => {
-    const onFocus = () => { if (state === "idle") startRecording(); };
-    const onBlur = () => { if (state === "recording") cancelRecording(); };
+    const onFocus = () => {
+      console.log("[pill] window focus, state:", stateRef.current);
+      if (stateRef.current === "idle") startRecording();
+    };
+    const onBlur = () => {
+      console.log("[pill] window blur, state:", stateRef.current);
+      if (stateRef.current === "recording") cancelRecording();
+    };
     window.addEventListener("focus", onFocus);
     window.addEventListener("blur", onBlur);
     return () => { window.removeEventListener("focus", onFocus); window.removeEventListener("blur", onBlur); };
-  }, [startRecording, cancelRecording, state]);
+  }, [startRecording, cancelRecording]);
 
+  // Start on mount
   useEffect(() => {
+    console.log("[pill] mounted, starting recording");
     startRecording();
-    return () => { wantsMicRef.current = false; stopVisualization(); streamerRef.current?.close(); recorderRef.current.cancel(); };
+    return () => {
+      console.log("[pill] unmounting, cleaning up");
+      wantsMicRef.current = false;
+      stopVisualization();
+      streamerRef.current?.close();
+      recorderRef.current.cancel();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
