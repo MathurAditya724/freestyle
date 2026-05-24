@@ -6,6 +6,7 @@ import {
   createTranscriptionModel,
   getDefaultModels,
 } from "../lib/providers.js";
+import { getModelCost } from "../routes/models.js";
 
 const transcribeRoute = new Hono();
 
@@ -320,12 +321,29 @@ Output ONLY the cleaned text. No explanations, no quotes, no prefixes.`;
 
   const durationMs = Date.now() - start;
 
+  // Calculate cost from models.dev pricing
+  let costUsd = 0;
+  if (inputTokens > 0 || outputTokens > 0) {
+    try {
+      const llmModelId =
+        llmEnabled && defaults.llm ? defaults.llm.model_id : null;
+      if (llmModelId) {
+        const pricing = await getModelCost(llmModelId);
+        if (pricing) {
+          costUsd = inputTokens * pricing.input + outputTokens * pricing.output;
+        }
+      }
+    } catch {
+      // ignore pricing errors
+    }
+  }
+
   // Save to history
   try {
     db.prepare(
       `INSERT INTO transcription_history
-       (raw_text, cleaned_text, voice_provider, voice_model, llm_provider, llm_model, duration_ms, input_tokens, output_tokens)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (raw_text, cleaned_text, voice_provider, voice_model, llm_provider, llm_model, duration_ms, input_tokens, output_tokens, cost_usd)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       rawText,
       cleanedText !== rawText ? cleanedText : null,
@@ -336,6 +354,7 @@ Output ONLY the cleaned text. No explanations, no quotes, no prefixes.`;
       durationMs,
       inputTokens,
       outputTokens,
+      costUsd,
     );
   } catch (err) {
     console.error("Failed to save history:", err);

@@ -99,11 +99,12 @@ history.get("/stats", (c) => {
     avg_duration_ms: number;
   };
 
+  // Use localtime to match the user's timezone for "today" boundary
   const today = db
     .prepare(
       `SELECT COUNT(*) as sessions, COALESCE(SUM(cost_usd), 0) as cost
        FROM transcription_history
-       WHERE date(created_at) = date('now')`,
+       WHERE date(created_at, 'localtime') = date('now', 'localtime')`,
     )
     .get() as { sessions: number; cost: number };
 

@@ -87,6 +87,37 @@ async function fetchModelsFromRegistry(): Promise<Record<string, unknown>> {
   return data;
 }
 
+/**
+ * Look up per-token cost from models.dev registry.
+ * Returns { inputCostPerToken, outputCostPerToken } or null if not found.
+ * Costs in the registry are per-million tokens.
+ */
+export async function getModelCost(
+  modelId: string,
+): Promise<{ input: number; output: number } | null> {
+  try {
+    const registry = await fetchModelsFromRegistry();
+    // modelId is like "openai/gpt-4o" or "anthropic/claude-sonnet-4-20250514"
+    const parts = modelId.split("/");
+    const providerId = parts[0];
+    const shortId = parts.slice(1).join("/");
+
+    const provider = registry[providerId] as RegistryProvider | undefined;
+    if (!provider?.models) return null;
+
+    // Try exact match first, then try matching by short ID
+    const model = provider.models[modelId] ?? provider.models[shortId] ?? null;
+    if (!model?.cost) return null;
+
+    return {
+      input: (model.cost.input ?? 0) / 1_000_000,
+      output: (model.cost.output ?? 0) / 1_000_000,
+    };
+  } catch {
+    return null;
+  }
+}
+
 interface RegistryModel {
   id: string;
   name: string;

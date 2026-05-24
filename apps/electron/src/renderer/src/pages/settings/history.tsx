@@ -45,7 +45,7 @@ function formatDuration(ms: number): string {
   return `${s}s`;
 }
 
-function formatDate(iso: string): string {
+function formatTime(iso: string): string {
   const d = new Date(`${iso}Z`);
   const now = new Date();
   const diff = now.getTime() - d.getTime();
@@ -54,12 +54,39 @@ function formatDate(iso: string): string {
   if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`;
   if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`;
 
-  return d.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
+  return d.toLocaleTimeString(undefined, {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/** Get a date key for grouping: "today", "yesterday", or "YYYY-MM-DD" */
+function getDateGroup(iso: string): string {
+  const d = new Date(`${iso}Z`);
+  const now = new Date();
+
+  const entryDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.floor(
+    (today.getTime() - entryDate.getTime()) / 86400_000,
+  );
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+/** Calculate words per second */
+function wordsPerSec(text: string, durationMs: number): string {
+  if (durationMs <= 0) return "";
+  const words = text.trim().split(/\s+/).length;
+  const wps = words / (durationMs / 1000);
+  return `${wps.toFixed(1)} w/s`;
 }
 
 const PAGE_SIZE = 20;
@@ -149,7 +176,7 @@ export default function HistoryPage(): React.JSX.Element {
           />
           <StatCard
             label="Total Cost"
-            value={`$${stats.total_cost_usd.toFixed(2)}`}
+            value={`$${stats.total_cost_usd.toFixed(4)}`}
           />
         </div>
       )}
@@ -195,14 +222,34 @@ export default function HistoryPage(): React.JSX.Element {
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {entries.map((entry) => (
-              <HistoryCard
-                key={entry.id}
-                entry={entry}
-                onDelete={deleteEntry}
-              />
-            ))}
+          <div className="space-y-4">
+            {(() => {
+              // Group entries by day
+              const groups: { label: string; items: HistoryEntry[] }[] = [];
+              let currentLabel = "";
+              for (const entry of entries) {
+                const label = getDateGroup(entry.created_at);
+                if (label !== currentLabel) {
+                  groups.push({ label, items: [] });
+                  currentLabel = label;
+                }
+                groups[groups.length - 1].items.push(entry);
+              }
+              return groups.map((group) => (
+                <div key={group.label} className="space-y-2">
+                  <h3 className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                    {group.label}
+                  </h3>
+                  {group.items.map((entry) => (
+                    <HistoryCard
+                      key={entry.id}
+                      entry={entry}
+                      onDelete={deleteEntry}
+                    />
+                  ))}
+                </div>
+              ));
+            })()}
           </div>
         )}
 
@@ -270,12 +317,15 @@ function HistoryCard({
     setTimeout(() => setCopied(false), 1500);
   }, [text]);
 
+  const wps = wordsPerSec(text, entry.duration_ms);
+
   return (
     <div className="border-border group rounded-lg border px-4 py-3">
       <p className="line-clamp-5 text-sm leading-relaxed">{text}</p>
       <div className="text-muted-foreground mt-1.5 flex items-center gap-x-3 text-xs">
-        <span>{formatDate(entry.created_at)}</span>
+        <span>{formatTime(entry.created_at)}</span>
         <span>{formatDuration(entry.duration_ms)}</span>
+        {wps && <span>{wps}</span>}
         <span className="mono text-[10px]">
           {entry.voice_model.includes("/")
             ? entry.voice_model.split("/").pop()
@@ -289,7 +339,7 @@ function HistoryCard({
               : entry.llm_model}
           </span>
         )}
-        {entry.cost_usd > 0 && <span>${entry.cost_usd.toFixed(2)}</span>}
+        {entry.cost_usd > 0 && <span>${entry.cost_usd.toFixed(4)}</span>}
         <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           <button
             type="button"
