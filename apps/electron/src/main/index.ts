@@ -1,7 +1,12 @@
 import { electronApp, is, optimizer } from "@electron-toolkit/utils";
+import server from "@freestyle/server";
+import { serve, ServerType } from "@hono/node-server";
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { join } from "path";
 import icon from "../../resources/icon.png?asset";
+
+const SERVER_PORT = 4649;
+let httpServer: ServerType | null = null;
 
 function createWindow(): void {
   // Create the browser window.
@@ -52,6 +57,11 @@ app.whenReady().then(() => {
   // IPC test
   ipcMain.on("ping", () => console.log("pong"));
 
+  // Start the Hono HTTP server in the background
+  httpServer = serve({ fetch: server.fetch, port: SERVER_PORT }, (info) => {
+    console.log(`Server running on http://localhost:${info.port}`);
+  });
+
   createWindow();
 
   app.on("activate", () => {
@@ -67,6 +77,14 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
+  }
+});
+
+// Gracefully shut down the HTTP server before quitting
+app.on("before-quit", () => {
+  if (httpServer) {
+    httpServer.close();
+    httpServer = null;
   }
 });
 

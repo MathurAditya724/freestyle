@@ -14,5 +14,8 @@
     "nano-staged": "^1.0.2",
     "turbo": "^2.9.14"
   },
-  "packageManager": "pnpm@10.32.1"
+  "packageManager": "pnpm@10.32.1",
+  "pnpm": {
+    "onlyBuiltDependencies": ["electron", "esbuild"]
+  }
 }

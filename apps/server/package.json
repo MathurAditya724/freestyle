@@ -1,0 +1,21 @@
+{
+  "name": "@freestyle/server",
+  "type": "module",
+  "scripts": {
+    "build": "pkgroll --minify src/index.ts"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "development": "./src/index.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "dependencies": {
+    "hono": "^4.12.22"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "pkgroll": "^2.27.0"
+  }
+}

@@ -4,7 +4,13 @@ import { defineConfig } from "electron-vite";
 import { resolve } from "path";
 
 export default defineConfig({
-  main: {},
+  main: {
+    build: {
+      externalizeDeps: {
+        exclude: ["@freestyle/server"],
+      },
+    },
+  },
   preload: {},
   renderer: {
     resolve: {
