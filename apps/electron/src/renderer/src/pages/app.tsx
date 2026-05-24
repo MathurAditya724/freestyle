@@ -247,6 +247,15 @@ export default function AppPage(): React.JSX.Element {
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  // Hide the pill whenever we return to idle (covers all exit paths)
+  const prevStateRef = useRef(state);
+  useEffect(() => {
+    if (state === "idle" && prevStateRef.current !== "idle") {
+      window.api.hidePill();
+    }
+    prevStateRef.current = state;
+  }, [state]);
+
   // Hold-to-record: hotkey down = start, hotkey up = commit
   useEffect(() => {
     const removeDown = window.api.onHotkeyDown(() => {

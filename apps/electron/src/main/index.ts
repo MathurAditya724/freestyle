@@ -254,6 +254,11 @@ app.whenReady().then(() => {
     await pasteIntoFocusedApp(text);
   });
 
+  // IPC: hide the pill window on request from renderer
+  ipcMain.on("pill:hide", () => {
+    hidePill();
+  });
+
   // IPC: notify renderer of recording state changes
   ipcMain.on("ping", () => console.log("pong"));
 
