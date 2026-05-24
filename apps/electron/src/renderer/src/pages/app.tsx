@@ -381,22 +381,22 @@ export default function AppPage(): React.JSX.Element {
       <style>
         {`
           @keyframes glow-pulse-green {
-            0%, 100% { box-shadow: 0 0 20px 4px rgba(138,182,42,0.15), 0 0 40px 8px rgba(138,182,42,0.06); }
-            50% { box-shadow: 0 0 28px 8px rgba(138,182,42,0.25), 0 0 56px 14px rgba(138,182,42,0.10); }
+            0%, 100% { box-shadow: 0 0 8px 2px rgba(138,182,42,0.12), 0 0 16px 4px rgba(138,182,42,0.05); }
+            50% { box-shadow: 0 0 12px 3px rgba(138,182,42,0.20), 0 0 20px 5px rgba(138,182,42,0.08); }
           }
           @keyframes glow-pulse-blue {
-            0%, 100% { box-shadow: 0 0 20px 4px rgba(96,165,250,0.18), 0 0 40px 8px rgba(96,165,250,0.07); }
-            50% { box-shadow: 0 0 28px 8px rgba(96,165,250,0.30), 0 0 56px 14px rgba(96,165,250,0.12); }
+            0%, 100% { box-shadow: 0 0 8px 2px rgba(96,165,250,0.14), 0 0 16px 4px rgba(96,165,250,0.06); }
+            50% { box-shadow: 0 0 12px 3px rgba(96,165,250,0.22), 0 0 20px 5px rgba(96,165,250,0.09); }
           }
           @keyframes glow-pulse-red {
-            0%, 100% { box-shadow: 0 0 18px 4px rgba(221,110,78,0.15); }
-            50% { box-shadow: 0 0 24px 6px rgba(221,110,78,0.25); }
+            0%, 100% { box-shadow: 0 0 8px 2px rgba(221,110,78,0.12); }
+            50% { box-shadow: 0 0 12px 3px rgba(221,110,78,0.20); }
           }
           .glow-recording { animation: glow-pulse-green 2s ease-in-out infinite; }
           .glow-transcribing { animation: glow-pulse-blue 1.5s ease-in-out infinite; }
-          .glow-pasted { box-shadow: 0 0 24px 6px rgba(138,182,42,0.15); transition: box-shadow 300ms ease; }
+          .glow-pasted { box-shadow: 0 0 10px 3px rgba(138,182,42,0.12); transition: box-shadow 300ms ease; }
           .glow-error { animation: glow-pulse-red 1.5s ease-in-out infinite; }
-          .glow-idle { box-shadow: 0 0 16px 3px rgba(161,161,170,0.06); transition: box-shadow 300ms ease; }
+          .glow-idle { box-shadow: 0 0 6px 2px rgba(161,161,170,0.05); transition: box-shadow 300ms ease; }
         `}
       </style>
       <div className={glowState} style={{ borderRadius: 28 }}>
