@@ -101,10 +101,10 @@ function getAppWindowPosition(): { x: number; y: number } {
     case "top-center":
       return { x: Math.round((width - APP_WIDTH) / 2), y: margin };
     case "top-right":
-      return { x: width - APP_WIDTH - margin + 5, y: margin };
+      return { x: width - APP_WIDTH - margin, y: margin };
     case "bottom-right":
       return {
-        x: width - APP_WIDTH - margin + 5,
+        x: width - APP_WIDTH - margin,
         y: height - APP_HEIGHT - margin,
       };
     case "bottom-center":

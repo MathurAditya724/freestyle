@@ -56,7 +56,6 @@ export default function AppPage(): React.JSX.Element {
   const [message, setMessage] = useState("");
   const [partialText, setPartialText] = useState("");
   const [useStreaming, setUseStreaming] = useState(false);
-  const [pillAlign, setPillAlign] = useState<"center" | "end">("center");
 
   const recorderRef = useRef(new Recorder());
   const streamerRef = useRef<Streamer | null>(null);
@@ -330,16 +329,6 @@ export default function AppPage(): React.JSX.Element {
     prevStateRef.current = state;
   }, [state]);
 
-  // Load pill position alignment
-  useEffect(() => {
-    window.api
-      ?.getPillPosition()
-      .then((pos) => {
-        setPillAlign(pos.includes("right") ? "end" : "center");
-      })
-      .catch(() => {});
-  }, []);
-
   // Hold-to-record: hotkey down = start, hotkey up = commit
   useEffect(() => {
     const removeDown = window.api.onHotkeyDown(() => {
@@ -386,13 +375,8 @@ export default function AppPage(): React.JSX.Element {
 
   return (
     <div
-      className={`flex h-screen w-screen items-center select-none ${pillAlign === "end" ? "justify-end" : "justify-center"}`}
-      style={
-        {
-          WebkitAppRegion: "drag",
-          ...(pillAlign === "end" ? { paddingRight: 10 } : {}),
-        } as React.CSSProperties
-      }
+      className="flex h-screen w-screen items-center justify-center select-none"
+      style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
       <style>
         {`
