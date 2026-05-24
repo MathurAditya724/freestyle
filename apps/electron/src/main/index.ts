@@ -39,6 +39,7 @@ let settingsWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let keyListener: GlobalKeyboardListener | null = null;
 let hotkeyPressed = false;
+let currentHotkeyAccel: string | null = null;
 
 // Register a custom app:// protocol that serves the renderer files.
 // All non-file paths fall back to index.html so BrowserRouter works in production.
@@ -119,10 +120,6 @@ function createAppWindow(): void {
     visibleOnFullScreen: true,
   });
 
-  mainWindow.on("ready-to-show", () => {
-    mainWindow!.showInactive();
-  });
-
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
@@ -146,11 +143,17 @@ function createSettingsWindow(): void {
     ...(process.platform === "linux" ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
+      sandbox: false,
     },
   });
 
   settingsWindow.on("ready-to-show", () => {
+    if (process.platform === "darwin") {
+      app.dock?.show();
+      app.focus({ steal: true });
+    }
     settingsWindow!.show();
+    settingsWindow!.focus();
   });
 
   settingsWindow.on("closed", () => {
@@ -189,6 +192,10 @@ function showSettingsWindow(): void {
     createSettingsWindow();
     return;
   }
+  if (process.platform === "darwin") {
+    app.dock?.show();
+    app.focus({ steal: true });
+  }
   settingsWindow.show();
   settingsWindow.focus();
 }
@@ -215,13 +222,9 @@ function createTray(): void {
     },
   ]);
 
-  // Left-click: toggle the app window
+  // Left-click: open the settings window
   tray.on("click", () => {
-    if (mainWindow?.isVisible()) {
-      hidePill();
-    } else {
-      showPill();
-    }
+    showSettingsWindow();
   });
 
   // Right-click: show context menu
@@ -239,6 +242,49 @@ app.whenReady().then(() => {
 
   // Register the custom app:// protocol for production SPA support
   registerAppProtocol();
+
+  // Set a minimal application menu
+  const appMenu = Menu.buildFromTemplate([
+    ...(process.platform === "darwin"
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: "about" as const },
+              { type: "separator" as const },
+              {
+                label: "Settings",
+                accelerator: "CommandOrControl+,",
+                click: () => showSettingsWindow(),
+              },
+              { type: "separator" as const },
+              { role: "hide" as const },
+              { role: "hideOthers" as const },
+              { role: "unhide" as const },
+              { type: "separator" as const },
+              { role: "quit" as const },
+            ],
+          },
+        ]
+      : []),
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" },
+      ],
+    },
+    {
+      role: "window",
+      submenu: [{ role: "minimize" }, { role: "close" }],
+    },
+  ]);
+  Menu.setApplicationMenu(appMenu);
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -262,6 +308,188 @@ app.whenReady().then(() => {
 
   // IPC: expose the server port to the renderer
   ipcMain.handle("server:port", () => serverPort);
+
+  // IPC: permission checks
+  ipcMain.handle("permissions:check-mic", async () => {
+    if (process.platform === "darwin") {
+      const { systemPreferences } = await import("electron");
+      return systemPreferences.getMediaAccessStatus("microphone");
+    }
+    return "granted"; // Windows/Linux don't have this API
+  });
+
+  ipcMain.handle("permissions:request-mic", async () => {
+    if (process.platform === "darwin") {
+      const { systemPreferences } = await import("electron");
+      const granted = await systemPreferences.askForMediaAccess("microphone");
+      return granted ? "granted" : "denied";
+    }
+    return "granted";
+  });
+
+  ipcMain.handle("permissions:check-accessibility", async () => {
+    if (process.platform === "darwin") {
+      const { systemPreferences } = await import("electron");
+      return systemPreferences.isTrustedAccessibilityClient(false);
+    }
+    return true;
+  });
+
+  ipcMain.on("permissions:open-accessibility", () => {
+    if (process.platform === "darwin") {
+      shell.openExternal(
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+      );
+    }
+  });
+
+  ipcMain.handle("onboarding:complete", () => {
+    try {
+      const settingsPath = join(app.getPath("userData"), "settings.json");
+      const data = JSON.parse(
+        require("node:fs").readFileSync(settingsPath, "utf-8"),
+      );
+      return data.onboardingComplete === true;
+    } catch {
+      return false;
+    }
+  });
+
+  ipcMain.on("onboarding:set-complete", () => {
+    try {
+      const settingsPath = join(app.getPath("userData"), "settings.json");
+      let data: Record<string, unknown> = {};
+      try {
+        data = JSON.parse(
+          require("node:fs").readFileSync(settingsPath, "utf-8"),
+        );
+      } catch {
+        // file doesn't exist yet
+      }
+      data.onboardingComplete = true;
+      require("node:fs").writeFileSync(
+        settingsPath,
+        JSON.stringify(data, null, 2),
+      );
+    } catch {
+      // ignore
+    }
+  });
+
+  // IPC: hotkey recording via main process (captures keys the DOM can't see, e.g. fn/globe)
+  let recordingListener: GlobalKeyboardListener | null = null;
+
+  ipcMain.on("hotkey-record:start", () => {
+    // Kill any existing recording listener
+    if (recordingListener) {
+      recordingListener.kill();
+      recordingListener = null;
+    }
+
+    // Pause the active hotkey listener so it doesn't fire during recording
+    if (keyListener) {
+      keyListener.kill();
+      keyListener = null;
+    }
+
+    recordingListener = new GlobalKeyboardListener();
+    recordingListener.addListener(
+      (e: IGlobalKeyEvent, isDown: IGlobalKeyDownMap) => {
+        if (e.state !== "DOWN") return;
+
+        // Build the key event payload
+        const modifiers: string[] = [];
+        const isMac = process.platform === "darwin";
+        if (isDown["LEFT META"] || isDown["RIGHT META"]) {
+          modifiers.push(isMac ? "Command" : "Control");
+        }
+        if (isDown["LEFT CTRL"] || isDown["RIGHT CTRL"])
+          modifiers.push("Control");
+        if (isDown["LEFT ALT"] || isDown["RIGHT ALT"]) modifiers.push("Alt");
+        if (isDown["LEFT SHIFT"] || isDown["RIGHT SHIFT"])
+          modifiers.push("Shift");
+        // Deduplicate (e.g. Control from both Meta and Ctrl on non-Mac)
+        const uniqueModifiers = [...new Set(modifiers)];
+
+        // Skip if only a modifier key was pressed
+        const modifierNames = [
+          "LEFT META",
+          "RIGHT META",
+          "LEFT CTRL",
+          "RIGHT CTRL",
+          "LEFT ALT",
+          "RIGHT ALT",
+          "LEFT SHIFT",
+          "RIGHT SHIFT",
+        ];
+        if (modifierNames.includes(e.name ?? "")) {
+          // Send partial modifier state to renderer
+          settingsWindow?.webContents.send(
+            "hotkey-record:modifiers",
+            uniqueModifiers,
+          );
+          return;
+        }
+
+        // Map node-global-key-listener key names to our accelerator format
+        const keyMap: Record<string, string> = {
+          SPACE: "Space",
+          RETURN: "Return",
+          ESCAPE: "Escape",
+          TAB: "Tab",
+          BACKSPACE: "Backspace",
+          DELETE: "Delete",
+          "UP ARROW": "Up",
+          "DOWN ARROW": "Down",
+          "LEFT ARROW": "Left",
+          "RIGHT ARROW": "Right",
+          FN: "Fn",
+        };
+
+        const keyName = e.name ?? "";
+
+        // Escape cancels recording
+        if (keyName === "ESCAPE") {
+          settingsWindow?.webContents.send("hotkey-record:cancel");
+          recordingListener?.kill();
+          recordingListener = null;
+          // Re-register the hotkey listener
+          registerHotkey(currentHotkeyAccel ?? undefined);
+          return;
+        }
+
+        const mappedKey = keyMap[keyName] || keyName;
+
+        // Fn key is allowed without modifiers; other keys need at least one modifier
+        if (
+          uniqueModifiers.length === 0 &&
+          mappedKey !== "Fn" &&
+          !/^F\d{1,2}$/.test(mappedKey)
+        ) {
+          return;
+        }
+
+        // Send the captured combo to the renderer
+        settingsWindow?.webContents.send("hotkey-record:captured", {
+          modifiers: uniqueModifiers,
+          key: mappedKey,
+        });
+
+        // Stop listening after capture (hotkey re-registered when user saves/cancels via hotkey-record:stop)
+        recordingListener?.kill();
+        recordingListener = null;
+      },
+    );
+  });
+
+  ipcMain.on("hotkey-record:stop", () => {
+    if (recordingListener) {
+      recordingListener.kill();
+      recordingListener = null;
+    }
+    // Re-register the hotkey listener
+    registerHotkey(currentHotkeyAccel ?? undefined);
+  });
 
   // Set database path for the server before any API calls
   process.env.FREESTYLE_DB_PATH = join(app.getPath("userData"), "freestyle.db");
@@ -311,6 +539,7 @@ app.whenReady().then(() => {
 
   // Listen for hotkey changes from the settings UI
   ipcMain.on("hotkey:update", (_event, newHotkey: string) => {
+    console.log(`[hotkey] Received update from settings: "${newHotkey}"`);
     registerHotkey(newHotkey);
   });
 });
@@ -361,6 +590,7 @@ function parseAccelerator(accel: string): HotkeyParts {
     down: "DOWN ARROW",
     left: "LEFT ARROW",
     right: "RIGHT ARROW",
+    fn: "FN",
   };
 
   const mappedKey = keyMap[key.toLowerCase()] || key.toUpperCase();
@@ -408,7 +638,12 @@ function modifiersMatch(
 function isValidAccelerator(accel: string): boolean {
   if (!accel || typeof accel !== "string") return false;
   if (!/^[\x20-\x7E]+$/.test(accel)) return false;
-  if (!accel.includes("+") && !/^F\d{1,2}$/.test(accel)) return false;
+  if (
+    !accel.includes("+") &&
+    !/^F\d{1,2}$/.test(accel) &&
+    accel.toLowerCase() !== "fn"
+  )
+    return false;
   if (accel.endsWith("+")) return false;
   const parts = accel.split("+");
   if (parts.some((p) => !p.trim())) return false;
@@ -448,11 +683,19 @@ function registerHotkey(hotkey?: string): void {
   }
 
   const accel = hotkey && isValidAccelerator(hotkey) ? hotkey : DEFAULT_HOTKEY;
+  currentHotkeyAccel = accel;
   const { modifiers, key: triggerKey } = parseAccelerator(accel);
+
+  console.log(
+    `[hotkey] Registering: "${accel}" -> key="${triggerKey}", modifiers=[${Array.from(modifiers).join(", ")}]`,
+  );
 
   keyListener = new GlobalKeyboardListener();
 
-  const listener = (e: IGlobalKeyEvent, isDown: IGlobalKeyDownMap): void => {
+  const listener = (
+    e: IGlobalKeyEvent,
+    isDown: IGlobalKeyDownMap,
+  ): boolean | undefined => {
     if (e.name !== triggerKey) return;
 
     if (e.state === "DOWN" && !hotkeyPressed) {
@@ -462,9 +705,12 @@ function registerHotkey(hotkey?: string): void {
       hotkeyPressed = true;
       showPill();
       mainWindow?.webContents.send("hotkey:down");
+      // Suppress the key event so other apps don't receive it
+      return true;
     } else if (e.state === "UP" && hotkeyPressed) {
       hotkeyPressed = false;
       mainWindow?.webContents.send("hotkey:up");
+      return true;
     }
   };
 

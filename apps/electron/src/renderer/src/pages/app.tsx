@@ -2,7 +2,7 @@ import { Orb } from "@renderer/components/ui/orb";
 import { getApiBase } from "@renderer/lib/api";
 import { Recorder } from "@renderer/lib/recorder";
 import { Streamer } from "@renderer/lib/streamer";
-import { Check, Loader2, Mic } from "lucide-react";
+import { Check, Mic } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const BARS = 14;
@@ -138,6 +138,11 @@ export default function AppPage(): React.JSX.Element {
           onReady: () => {},
           onPartial: (text) => setPartialText(text),
           onFinal: async (text) => {
+            // Always clean up streamer and recorder after streaming completes
+            streamerRef.current?.close();
+            streamerRef.current = null;
+            recorderRef.current.cancel();
+
             if (text.trim()) {
               await window.api.pasteText(text);
               setState("pasted");
@@ -147,15 +152,32 @@ export default function AppPage(): React.JSX.Element {
                 setMessage("");
                 setPartialText("");
               }, 1500);
+            } else {
+              setState("idle");
+              setMessage("");
+              setPartialText("");
             }
           },
-          onError: () => {},
+          onError: (msg) => {
+            // Clean up on streaming error
+            streamerRef.current?.close();
+            streamerRef.current = null;
+            recorderRef.current.cancel();
+            setState("error");
+            setMessage(msg);
+            setTimeout(() => {
+              setState("idle");
+              setMessage("");
+            }, 2500);
+          },
         });
         streamerRef.current = streamer;
         // Start the streamer's mic separately (it gets its own stream)
         await streamer.start();
       } catch {
         // Streaming is optional -- REST fallback always works
+        // Close the streamer if it partially initialized (e.g. WebSocket opened but mic failed)
+        streamerRef.current?.close();
         streamerRef.current = null;
       }
     } catch (err) {
@@ -176,8 +198,10 @@ export default function AppPage(): React.JSX.Element {
     // If streaming mode is active, just commit via WebSocket
     if (useStreaming && streamer) {
       setState("transcribing");
+      // Stop the recorder's mic stream (the streamer has its own)
+      recorderRef.current.cancel();
       streamer.commit();
-      // The onFinal callback will handle the paste
+      // The onFinal callback will handle the paste and cleanup
       return;
     }
 
@@ -369,6 +393,8 @@ export default function AppPage(): React.JSX.Element {
                   height={svgHeight}
                   viewBox={`0 0 ${svgWidth} ${svgHeight}`}
                   style={{ display: "block", flex: 1 }}
+                  role="img"
+                  aria-label="Audio levels"
                 >
                   {bars.map((val, i) => {
                     const h = Math.max(2, val * svgHeight * 1.25);
@@ -411,11 +437,21 @@ export default function AppPage(): React.JSX.Element {
               className="inline-flex items-center gap-2"
               style={{ padding: "0 8px" }}
             >
-              <Loader2
-                size={16}
-                className="animate-spin"
-                style={{ color: "#8AB62A" }}
-              />
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  overflow: "hidden",
+                  flexShrink: 0,
+                }}
+              >
+                <Orb
+                  colors={["#60A5FA", "#3B82F6"]}
+                  agentState="thinking"
+                  className="h-full w-full"
+                />
+              </div>
               <span style={{ color: "#a1a1aa", fontSize: 13 }}>
                 {partialText ? partialText.slice(-30) : "Transcribing..."}
               </span>

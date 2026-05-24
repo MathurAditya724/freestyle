@@ -19,6 +19,43 @@ const api = {
     ipcRenderer.on("hotkey:up", handler);
     return () => ipcRenderer.removeListener("hotkey:up", handler);
   },
+  checkMicPermission: (): Promise<string> =>
+    ipcRenderer.invoke("permissions:check-mic"),
+  requestMicPermission: (): Promise<string> =>
+    ipcRenderer.invoke("permissions:request-mic"),
+  checkAccessibilityPermission: (): Promise<boolean> =>
+    ipcRenderer.invoke("permissions:check-accessibility"),
+  openAccessibilitySettings: (): void =>
+    ipcRenderer.send("permissions:open-accessibility"),
+  getOnboardingComplete: (): Promise<boolean> =>
+    ipcRenderer.invoke("onboarding:complete"),
+  setOnboardingComplete: (): void =>
+    ipcRenderer.send("onboarding:set-complete"),
+  startHotkeyRecording: (): void => ipcRenderer.send("hotkey-record:start"),
+  stopHotkeyRecording: (): void => ipcRenderer.send("hotkey-record:stop"),
+  onHotkeyRecordModifiers: (
+    callback: (modifiers: string[]) => void,
+  ): (() => void) => {
+    const handler = (_: unknown, modifiers: string[]): void =>
+      callback(modifiers);
+    ipcRenderer.on("hotkey-record:modifiers", handler);
+    return () => ipcRenderer.removeListener("hotkey-record:modifiers", handler);
+  },
+  onHotkeyRecordCaptured: (
+    callback: (combo: { modifiers: string[]; key: string }) => void,
+  ): (() => void) => {
+    const handler = (
+      _: unknown,
+      combo: { modifiers: string[]; key: string },
+    ): void => callback(combo);
+    ipcRenderer.on("hotkey-record:captured", handler);
+    return () => ipcRenderer.removeListener("hotkey-record:captured", handler);
+  },
+  onHotkeyRecordCancel: (callback: () => void): (() => void) => {
+    const handler = (): void => callback();
+    ipcRenderer.on("hotkey-record:cancel", handler);
+    return () => ipcRenderer.removeListener("hotkey-record:cancel", handler);
+  },
 };
 
 // Use `contextBridge` APIs to expose Electron APIs to

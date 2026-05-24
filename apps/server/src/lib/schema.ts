@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 export function initSchema(db: DatabaseSync): void {
   db.exec(`
@@ -62,6 +62,18 @@ export function initSchema(db: DatabaseSync): void {
         output_tokens INTEGER NOT NULL DEFAULT 0,
         cost_usd REAL NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+  }
+
+  if (currentVersion < 3) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS dictionary (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key TEXT NOT NULL UNIQUE,
+        value TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `);
   }

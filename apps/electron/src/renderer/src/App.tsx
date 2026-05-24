@@ -1,5 +1,6 @@
 import AppPage from "@renderer/pages/app";
 import NotFoundPage from "@renderer/pages/not-found";
+import DictionaryPage from "@renderer/pages/settings/dictionary";
 import FeedbackPage from "@renderer/pages/settings/feedback";
 import GeneralSettingsPage from "@renderer/pages/settings/general";
 import HistoryPage from "@renderer/pages/settings/history";
@@ -16,6 +17,7 @@ export default function App(): React.JSX.Element {
         <Route index element={<Navigate to="general" replace />} />
         <Route path="general" element={<GeneralSettingsPage />} />
         <Route path="models" element={<ModelsPage />} />
+        <Route path="dictionary" element={<DictionaryPage />} />
         <Route path="history" element={<HistoryPage />} />
         <Route path="feedback" element={<FeedbackPage />} />
       </Route>

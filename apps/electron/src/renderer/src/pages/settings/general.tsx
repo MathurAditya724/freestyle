@@ -1,12 +1,70 @@
 import {
-  formatAccelerator,
+  comboDisplayKeys,
+  formatAcceleratorKeys,
+  keyDisplayLabel,
   useHotkeyRecorder,
 } from "@renderer/hooks/use-hotkey-recorder";
 import { getApiBase } from "@renderer/lib/api";
 import { cn } from "@renderer/lib/utils";
-import { Keyboard, Mic, Monitor, Moon, Sparkles, Sun } from "lucide-react";
+import { Keyboard, Mic, Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
+
+// ---------------------------------------------------------------------------
+// KeyBadge: renders a single key as a physical-key-style badge
+// ---------------------------------------------------------------------------
+
+function KeyBadge({
+  label,
+  variant = "default",
+}: {
+  label: string;
+  variant?: "default" | "recording" | "dim";
+}) {
+  return (
+    <kbd
+      className={cn(
+        "inline-flex select-none items-center justify-center",
+        "min-w-[26px] rounded-md px-1.5 py-1",
+        "font-mono text-xs font-medium leading-none",
+        "border shadow-[0_1px_0_0_hsl(var(--border))]",
+        variant === "default" && "border-border bg-muted text-foreground",
+        variant === "recording" &&
+          "border-primary/40 bg-primary/10 text-primary",
+        variant === "dim" &&
+          "border-border/50 bg-muted/50 text-muted-foreground",
+      )}
+    >
+      {label}
+    </kbd>
+  );
+}
+
+/** Renders an array of key labels as badges with + separators */
+function KeyComboDisplay({
+  keys,
+  variant = "default",
+}: {
+  keys: string[];
+  variant?: "default" | "recording" | "dim";
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      {keys.map((k, i) => (
+        <span key={i} className="flex items-center gap-1">
+          {i > 0 && (
+            <span className="text-muted-foreground text-[10px]">+</span>
+          )}
+          <KeyBadge label={k} variant={variant} />
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
 const themeOptions = [
   { value: "light", label: "Light", icon: Sun },
@@ -19,52 +77,55 @@ interface AudioDevice {
   label: string;
 }
 
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
 export default function GeneralSettingsPage(): React.JSX.Element {
   const { theme, setTheme } = useTheme();
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>("");
-  const [llmCleanup, setLlmCleanup] = useState(false);
   const [hotkey, setHotkey] = useState("Alt+Space");
 
   const handleHotkeyRecorded = useCallback((accelerator: string) => {
     setHotkey(accelerator);
-    // Save to DB
     fetch(`${getApiBase()}/api/settings/hotkey`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value: accelerator }),
-    }).catch((err) => console.error("Failed to save hotkey:", err));
-    // Notify main process
+    }).catch(() => {});
     window.api.updateHotkey(accelerator);
   }, []);
 
   const {
-    isRecording,
+    state: recorderState,
+    liveModifiers,
+    capturedCombo,
     startRecording: startHotkeyRecording,
     cancelRecording: cancelHotkeyRecording,
+    saveRecording: saveHotkeyRecording,
   } = useHotkeyRecorder(handleHotkeyRecorded);
 
   // Load available audio input devices
   useEffect(() => {
-    async function loadDevices() {
+    (async () => {
       try {
-        // Need mic permission first to get device labels
         await navigator.mediaDevices.getUserMedia({ audio: true }).then((s) => {
-          s.getTracks().forEach((t) => t.stop());
+          for (const t of s.getTracks()) t.stop();
         });
         const allDevices = await navigator.mediaDevices.enumerateDevices();
-        const audioInputs = allDevices
-          .filter((d) => d.kind === "audioinput")
-          .map((d) => ({
-            deviceId: d.deviceId,
-            label: d.label || `Microphone ${d.deviceId.slice(0, 8)}`,
-          }));
-        setDevices(audioInputs);
-      } catch (err) {
-        console.error("Failed to enumerate devices:", err);
+        setDevices(
+          allDevices
+            .filter((d) => d.kind === "audioinput")
+            .map((d) => ({
+              deviceId: d.deviceId,
+              label: d.label || `Microphone ${d.deviceId.slice(0, 8)}`,
+            })),
+        );
+      } catch {
+        // ignore
       }
-    }
-    loadDevices();
+    })();
   }, []);
 
   // Load saved settings from server
@@ -73,12 +134,6 @@ export default function GeneralSettingsPage(): React.JSX.Element {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.value) setSelectedDevice(data.value);
-      })
-      .catch(() => {});
-    fetch(`${getApiBase()}/api/settings/llm_cleanup`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.value) setLlmCleanup(data.value === "true");
       })
       .catch(() => {});
     fetch(`${getApiBase()}/api/settings/hotkey`)
@@ -95,7 +150,7 @@ export default function GeneralSettingsPage(): React.JSX.Element {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value: deviceId }),
-    }).catch((err) => console.error("Failed to save mic setting:", err));
+    }).catch(() => {});
   }, []);
 
   const handleThemeChange = useCallback(
@@ -105,10 +160,14 @@ export default function GeneralSettingsPage(): React.JSX.Element {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ value }),
-      }).catch((err) => console.error("Failed to save theme:", err));
+      }).catch(() => {});
     },
     [setTheme],
   );
+
+  // Build display keys for current recorder state
+  const liveKeys = liveModifiers.map(keyDisplayLabel);
+  const capturedKeys = capturedCombo ? comboDisplayKeys(capturedCombo) : [];
 
   return (
     <div className="space-y-8">
@@ -171,6 +230,7 @@ export default function GeneralSettingsPage(): React.JSX.Element {
           </select>
         </div>
       </div>
+
       {/* Hotkey */}
       <div className="space-y-3">
         <div>
@@ -179,85 +239,69 @@ export default function GeneralSettingsPage(): React.JSX.Element {
             Global shortcut to toggle the transcription pill.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Keyboard className="text-muted-foreground h-4 w-4 shrink-0" />
-          {isRecording ? (
-            <div className="border-primary bg-primary/5 flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm">
-              <span className="text-muted-foreground animate-pulse">
-                Press your shortcut...
-              </span>
+
+        {recorderState === "idle" ? (
+          <button
+            type="button"
+            onClick={startHotkeyRecording}
+            className="border-border hover:bg-secondary flex items-center gap-3 rounded-lg border px-4 py-3 transition-colors"
+          >
+            <Keyboard className="text-muted-foreground h-4 w-4 shrink-0" />
+            <KeyComboDisplay keys={formatAcceleratorKeys(hotkey)} />
+            <span className="text-muted-foreground ml-auto text-xs">
+              Click to change
+            </span>
+          </button>
+        ) : recorderState === "recording" ? (
+          <div className="border-primary/60 bg-primary/5 flex items-center justify-between rounded-lg border px-4 py-3">
+            <div className="flex items-center gap-3">
+              <Keyboard className="text-primary h-4 w-4 shrink-0" />
+              {liveKeys.length > 0 ? (
+                <>
+                  <KeyComboDisplay keys={liveKeys} variant="dim" />
+                  <span className="text-muted-foreground animate-pulse text-xs">
+                    + press a key
+                  </span>
+                </>
+              ) : (
+                <span className="text-muted-foreground animate-pulse text-sm">
+                  Press a key combination...
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={cancelHotkeyRecording}
+              className="border-border hover:bg-secondary rounded-md border px-3 py-1.5 text-xs"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          /* captured */
+          <div className="border-primary/60 bg-primary/5 flex items-center justify-between rounded-lg border px-4 py-3">
+            <div className="flex items-center gap-3">
+              <Keyboard className="text-primary h-4 w-4 shrink-0" />
+              <KeyComboDisplay keys={capturedKeys} variant="recording" />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={saveHotkeyRecording}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-3 py-1.5 text-xs font-medium"
+              >
+                Save
+              </button>
               <button
                 type="button"
                 onClick={cancelHotkeyRecording}
-                className="text-muted-foreground hover:text-foreground text-xs"
+                className="border-border hover:bg-secondary rounded-md border px-3 py-1.5 text-xs"
               >
                 Cancel
               </button>
             </div>
-          ) : (
-            <button
-              type="button"
-              onClick={startHotkeyRecording}
-              className="border-border hover:bg-secondary flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm"
-            >
-              <span className="mono text-xs">{formatAccelerator(hotkey)}</span>
-              <span className="text-muted-foreground ml-2 text-xs">
-                Click to change
-              </span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* LLM Post-processing */}
-      <div className="space-y-3">
-        <div>
-          <h2 className="text-sm font-medium">Post-processing</h2>
-          <p className="text-muted-foreground text-sm">
-            Use an LLM to clean up transcribed text before pasting.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            const next = !llmCleanup;
-            setLlmCleanup(next);
-            fetch(`${getApiBase()}/api/settings/llm_cleanup`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ value: String(next) }),
-            }).catch((err) =>
-              console.error("Failed to save LLM cleanup:", err),
-            );
-          }}
-          className={cn(
-            "flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors",
-            llmCleanup
-              ? "border-primary bg-accent text-accent-foreground"
-              : "border-border text-muted-foreground hover:bg-secondary",
-          )}
-        >
-          <Sparkles className="h-4 w-4" />
-          <div className="flex-1 text-left">
-            <div className="font-medium">LLM Cleanup</div>
-            <div className="text-muted-foreground text-xs">
-              Fix grammar, punctuation, and formatting after transcription
-            </div>
           </div>
-          <div
-            className={cn(
-              "h-5 w-9 rounded-full transition-colors",
-              llmCleanup ? "bg-primary" : "bg-border",
-            )}
-          >
-            <div
-              className={cn(
-                "h-4 w-4 translate-y-0.5 rounded-full bg-white shadow transition-transform",
-                llmCleanup ? "translate-x-4.5" : "translate-x-0.5",
-              )}
-            />
-          </div>
-        </button>
+        )}
       </div>
     </div>
   );

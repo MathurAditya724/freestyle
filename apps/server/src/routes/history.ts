@@ -19,21 +19,53 @@ interface HistoryRow {
   created_at: string;
 }
 
-// List history (paginated)
+const ALLOWED_ORDER_COLUMNS = new Set([
+  "created_at",
+  "duration_ms",
+  "cost_usd",
+]);
+
+// List history (paginated, searchable, sortable)
 history.get("/", (c) => {
   const db = getDb();
   const limit = Math.min(Number(c.req.query("limit") || 50), 200);
   const offset = Number(c.req.query("offset") || 0);
+  const search = c.req.query("search")?.trim() || "";
+  const orderByParam = c.req.query("orderBy") || "-created_at";
 
-  const rows = db
-    .prepare(
-      "SELECT * FROM transcription_history ORDER BY created_at DESC LIMIT ? OFFSET ?",
-    )
-    .all(limit, offset) as HistoryRow[];
+  // Parse orderBy: "-created_at" means DESC, "created_at" means ASC
+  const desc = orderByParam.startsWith("-");
+  const column = desc ? orderByParam.slice(1) : orderByParam;
+  const orderColumn = ALLOWED_ORDER_COLUMNS.has(column) ? column : "created_at";
+  const orderDir = desc ? "DESC" : "ASC";
 
-  const countRow = db
-    .prepare("SELECT COUNT(*) as count FROM transcription_history")
-    .get() as { count: number };
+  let rows: HistoryRow[];
+  let countRow: { count: number };
+
+  if (search) {
+    const pattern = `%${search}%`;
+    rows = db
+      .prepare(
+        `SELECT * FROM transcription_history WHERE raw_text LIKE ? OR cleaned_text LIKE ? OR voice_model LIKE ? ORDER BY ${orderColumn} ${orderDir} LIMIT ? OFFSET ?`,
+      )
+      .all(pattern, pattern, pattern, limit, offset) as unknown as HistoryRow[];
+
+    countRow = db
+      .prepare(
+        `SELECT COUNT(*) as count FROM transcription_history WHERE raw_text LIKE ? OR cleaned_text LIKE ? OR voice_model LIKE ?`,
+      )
+      .get(pattern, pattern, pattern) as { count: number };
+  } else {
+    rows = db
+      .prepare(
+        `SELECT * FROM transcription_history ORDER BY ${orderColumn} ${orderDir} LIMIT ? OFFSET ?`,
+      )
+      .all(limit, offset) as unknown as HistoryRow[];
+
+    countRow = db
+      .prepare("SELECT COUNT(*) as count FROM transcription_history")
+      .get() as { count: number };
+  }
 
   return c.json({
     items: rows,
@@ -67,7 +99,6 @@ history.get("/stats", (c) => {
     avg_duration_ms: number;
   };
 
-  // Today's stats
   const today = db
     .prepare(
       `SELECT COUNT(*) as sessions, COALESCE(SUM(cost_usd), 0) as cost

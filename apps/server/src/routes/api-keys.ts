@@ -1,5 +1,12 @@
+import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
+import { z } from "zod/v4";
 import { getDb } from "../lib/db.js";
+
+const apiKeySchema = z.object({
+  provider: z.string().min(1, "Provider is required"),
+  key: z.string().min(1, "API key is required"),
+});
 
 const apiKeys = new Hono();
 
@@ -33,13 +40,9 @@ apiKeys.get("/:provider", (c) => {
 });
 
 // Store or update an API key
-apiKeys.post("/", async (c) => {
+apiKeys.post("/", zValidator("json", apiKeySchema), async (c) => {
   const db = getDb();
-  const body = await c.req.json<{ provider: string; key: string }>();
-
-  if (!body.provider || !body.key) {
-    return c.json({ error: "provider and key are required" }, 400);
-  }
+  const body = c.req.valid("json");
 
   db.prepare(
     `INSERT INTO api_keys (provider, key, created_at) VALUES (?, ?, datetime('now'))

@@ -1,11 +1,17 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { initSentry } from "./lib/sentry.js";
 import apiKeys from "./routes/api-keys.js";
+import dictionary from "./routes/dictionary.js";
+import feedback from "./routes/feedback.js";
 import history from "./routes/history.js";
 import models from "./routes/models.js";
 import settings from "./routes/settings.js";
 import stream from "./routes/stream.js";
 import transcribe from "./routes/transcribe.js";
+
+// Initialize Sentry as early as possible
+initSentry();
 
 const app = new Hono();
 
@@ -28,6 +34,8 @@ app.route("/api/keys", apiKeys);
 app.route("/api/models", models);
 app.route("/api/transcribe", transcribe);
 app.route("/api/history", history);
+app.route("/api/dictionary", dictionary);
+app.route("/api/feedback", feedback);
 app.route("/stream", stream);
 
 export default app;

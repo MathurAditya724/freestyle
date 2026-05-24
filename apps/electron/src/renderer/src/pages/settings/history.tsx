@@ -1,5 +1,15 @@
 import { getApiBase } from "@renderer/lib/api";
-import { Clock, Trash2, TrendingUp } from "lucide-react";
+import { cn } from "@renderer/lib/utils";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Copy,
+  Search,
+  Trash2,
+  TrendingUp,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 interface HistoryEntry {
@@ -52,20 +62,33 @@ function formatDate(iso: string): string {
   });
 }
 
+const PAGE_SIZE = 20;
+
 export default function HistoryPage(): React.JSX.Element {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [search, setSearch] = useState("");
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     try {
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(page * PAGE_SIZE),
+        orderBy: "-created_at",
+      });
+      if (search) params.set("search", search);
+
       const [histRes, statsRes] = await Promise.all([
-        fetch(`${getApiBase()}/api/history?limit=100`),
+        fetch(`${getApiBase()}/api/history?${params}`),
         fetch(`${getApiBase()}/api/history/stats`),
       ]);
       if (histRes.ok) {
         const data = await histRes.json();
         setEntries(data.items);
+        setTotal(data.total);
       }
       if (statsRes.ok) setStats(await statsRes.json());
     } catch (err) {
@@ -73,11 +96,13 @@ export default function HistoryPage(): React.JSX.Element {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, search]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const deleteEntry = useCallback(
     async (id: number) => {
@@ -124,7 +149,7 @@ export default function HistoryPage(): React.JSX.Element {
           />
           <StatCard
             label="Total Cost"
-            value={`$${stats.total_cost_usd.toFixed(4)}`}
+            value={`$${stats.total_cost_usd.toFixed(2)}`}
           />
         </div>
       )}
@@ -136,7 +161,7 @@ export default function HistoryPage(): React.JSX.Element {
             <Clock size={14} />
             Recent Sessions
           </h2>
-          {entries.length > 0 && (
+          {total > 0 && (
             <button
               type="button"
               onClick={clearAll}
@@ -145,6 +170,21 @@ export default function HistoryPage(): React.JSX.Element {
               Clear all
             </button>
           )}
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
+            placeholder="Search transcriptions..."
+            className="border-border bg-card text-foreground w-full rounded-lg border py-2 pl-9 pr-3 text-sm"
+          />
         </div>
 
         {entries.length === 0 ? (
@@ -157,48 +197,121 @@ export default function HistoryPage(): React.JSX.Element {
         ) : (
           <div className="space-y-2">
             {entries.map((entry) => (
-              <div
+              <HistoryCard
                 key={entry.id}
-                className="border-border group rounded-lg border px-4 py-3"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm leading-relaxed">
-                      {entry.cleaned_text || entry.raw_text}
-                    </p>
-                    <div className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                      <span>{formatDate(entry.created_at)}</span>
-                      <span>{formatDuration(entry.duration_ms)}</span>
-                      <span className="mono text-[10px]">
-                        {entry.voice_model.includes("/")
-                          ? entry.voice_model.split("/").pop()
-                          : entry.voice_model}
-                      </span>
-                      {entry.llm_model && (
-                        <span className="mono text-[10px]">
-                          +{" "}
-                          {entry.llm_model.includes("/")
-                            ? entry.llm_model.split("/").pop()
-                            : entry.llm_model}
-                        </span>
-                      )}
-                      {entry.cost_usd > 0 && (
-                        <span>${entry.cost_usd.toFixed(4)}</span>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => deleteEntry(entry.id)}
-                    className="text-muted-foreground hover:text-destructive shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
+                entry={entry}
+                onDelete={deleteEntry}
+              />
             ))}
           </div>
         )}
+
+        {/* Pagination */}
+        {total > 0 && (
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-muted-foreground text-xs">
+              {total} {total === 1 ? "session" : "sessions"}
+            </span>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className={cn(
+                    "rounded p-1",
+                    page === 0
+                      ? "text-muted-foreground/40"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="text-muted-foreground px-2 text-xs">
+                  {page + 1} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPage((p) => Math.min(totalPages - 1, p + 1))
+                  }
+                  disabled={page >= totalPages - 1}
+                  className={cn(
+                    "rounded p-1",
+                    page >= totalPages - 1
+                      ? "text-muted-foreground/40"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HistoryCard({
+  entry,
+  onDelete,
+}: {
+  entry: HistoryEntry;
+  onDelete: (id: number) => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const text = entry.cleaned_text || entry.raw_text;
+
+  const copyText = useCallback(async () => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }, [text]);
+
+  return (
+    <div className="border-border group rounded-lg border px-4 py-3">
+      <p className="line-clamp-5 text-sm leading-relaxed">{text}</p>
+      <div className="text-muted-foreground mt-1.5 flex items-center gap-x-3 text-xs">
+        <span>{formatDate(entry.created_at)}</span>
+        <span>{formatDuration(entry.duration_ms)}</span>
+        <span className="mono text-[10px]">
+          {entry.voice_model.includes("/")
+            ? entry.voice_model.split("/").pop()
+            : entry.voice_model}
+        </span>
+        {entry.llm_model && (
+          <span className="mono text-[10px]">
+            +{" "}
+            {entry.llm_model.includes("/")
+              ? entry.llm_model.split("/").pop()
+              : entry.llm_model}
+          </span>
+        )}
+        {entry.cost_usd > 0 && <span>${entry.cost_usd.toFixed(2)}</span>}
+        <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={copyText}
+            className="text-muted-foreground hover:text-foreground rounded p-1"
+            title="Copy text"
+          >
+            {copied ? (
+              <Check size={14} className="text-primary" />
+            ) : (
+              <Copy size={14} />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(entry.id)}
+            className="text-muted-foreground hover:text-destructive rounded p-1"
+            title="Delete"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -1,147 +1,195 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/**
- * Maps DOM KeyboardEvent to an Electron accelerator string.
- * Returns null if only modifier keys are pressed (waiting for a real key).
- */
-function eventToAccelerator(e: KeyboardEvent): string | null {
-  const parts: string[] = [];
+// ---------------------------------------------------------------------------
+// Platform detection
+// ---------------------------------------------------------------------------
 
-  // Modifiers
-  if (e.metaKey || e.ctrlKey) parts.push("CommandOrControl");
-  if (e.altKey) parts.push("Alt");
-  if (e.shiftKey) parts.push("Shift");
+const IS_MAC =
+  typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
 
-  // Ignore events that are only modifier keys
-  const key = e.key;
-  if (["Control", "Shift", "Alt", "Meta"].includes(key)) {
-    return null;
-  }
+// ---------------------------------------------------------------------------
+// Key symbol maps
+// ---------------------------------------------------------------------------
 
-  // Map special keys to Electron accelerator names
-  const keyMap: Record<string, string> = {
-    " ": "Space",
-    ArrowUp: "Up",
-    ArrowDown: "Down",
-    ArrowLeft: "Left",
-    ArrowRight: "Right",
-    Escape: "Escape",
-    Enter: "Return",
-    Backspace: "Backspace",
-    Delete: "Delete",
-    Tab: "Tab",
-    Home: "Home",
-    End: "End",
-    PageUp: "PageUp",
-    PageDown: "PageDown",
-  };
+const MAC_MOD_SYMBOLS: Record<string, string> = {
+  Control: "\u2303",
+  Command: "\u2318",
+  Alt: "\u2325",
+  Shift: "\u21E7",
+};
 
-  const mapped = keyMap[key];
-  if (mapped) {
-    parts.push(mapped);
-  } else if (key.length === 1) {
-    parts.push(key.toUpperCase());
-  } else if (key.startsWith("F") && /^F\d{1,2}$/.test(key)) {
-    // F1-F24
-    parts.push(key);
-  } else {
-    parts.push(key);
-  }
+const OTHER_MOD_LABELS: Record<string, string> = {
+  Control: "Ctrl",
+  Command: "Super",
+  Alt: "Alt",
+  Shift: "Shift",
+};
 
-  // Require at least one modifier + one key for a valid global shortcut
-  const modCount = [e.metaKey || e.ctrlKey, e.altKey, e.shiftKey].filter(
-    Boolean,
-  ).length;
-  if (modCount === 0) {
-    // Allow bare F-keys and Escape
-    if (!/^F\d{1,2}$/.test(parts[0]) && parts[0] !== "Escape") {
-      return null;
+const KEY_SYMBOLS: Record<string, string> = {
+  Space: "\u2423",
+  Return: "\u21A9",
+  Backspace: "\u232B",
+  Delete: "\u2326",
+  Escape: "\u238B",
+  Tab: "\u21E5",
+  Up: "\u2191",
+  Down: "\u2193",
+  Left: "\u2190",
+  Right: "\u2192",
+  Fn: "\uD83C\uDF10",
+};
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface HotkeyCombo {
+  modifiers: string[];
+  key: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const MODIFIER_ORDER = ["Control", "Command", "Alt", "Shift"];
+
+export function comboToAccelerator(combo: HotkeyCombo): string | null {
+  if (!combo.key) return null;
+  return [...combo.modifiers, combo.key].join("+");
+}
+
+export function acceleratorToCombo(accel: string): HotkeyCombo {
+  const parts = accel.split("+").map((p) => p.trim());
+  const key = parts[parts.length - 1];
+  const modifiers: string[] = [];
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    const p = parts[i];
+    if (p === "CommandOrControl") {
+      modifiers.push(IS_MAC ? "Command" : "Control");
+    } else if (MODIFIER_ORDER.includes(p)) {
+      modifiers.push(p);
     }
   }
 
-  return parts.join("+");
+  return {
+    modifiers: MODIFIER_ORDER.filter((m) => modifiers.includes(m)),
+    key,
+  };
 }
 
-/**
- * Formats an Electron accelerator string for display.
- * e.g. "CommandOrControl+Shift+Space" -> "Cmd + Shift + Space"
- */
-export function formatAccelerator(accel: string): string {
-  return accel
-    .replace("CommandOrControl", "\u2318")
-    .replace("Alt", "\u2325")
-    .replace("Shift", "\u21E7")
-    .replace("Return", "\u23CE")
-    .replace("Backspace", "\u232B")
-    .replace("Escape", "Esc")
-    .replace(/\+/g, " + ");
+export function keyDisplayLabel(key: string): string {
+  if (IS_MAC && MAC_MOD_SYMBOLS[key]) return MAC_MOD_SYMBOLS[key];
+  if (!IS_MAC && OTHER_MOD_LABELS[key]) return OTHER_MOD_LABELS[key];
+  if (KEY_SYMBOLS[key]) return KEY_SYMBOLS[key];
+  return key;
 }
+
+export function comboDisplayKeys(combo: HotkeyCombo): string[] {
+  const keys = combo.modifiers.map(keyDisplayLabel);
+  if (combo.key) keys.push(keyDisplayLabel(combo.key));
+  return keys;
+}
+
+export function formatAcceleratorKeys(accel: string): string[] {
+  return comboDisplayKeys(acceleratorToCombo(accel));
+}
+
+export function formatAccelerator(accel: string): string {
+  return formatAcceleratorKeys(accel).join(" ");
+}
+
+// ---------------------------------------------------------------------------
+// Hook -- uses main process IPC for recording (captures fn/globe key)
+// ---------------------------------------------------------------------------
+
+type RecorderState = "idle" | "recording" | "captured";
 
 interface UseHotkeyRecorderReturn {
-  isRecording: boolean;
+  state: RecorderState;
+  liveModifiers: string[];
+  capturedCombo: HotkeyCombo | null;
   startRecording: () => void;
   cancelRecording: () => void;
-  recordedKey: string | null;
+  saveRecording: () => void;
 }
 
-/**
- * Hook for recording a keyboard shortcut from the user.
- * When recording, captures the next key combination and converts it to
- * an Electron accelerator string.
- *
- * @param onRecord - Called with the accelerator string when a valid combo is captured
- */
 export function useHotkeyRecorder(
   onRecord: (accelerator: string) => void,
 ): UseHotkeyRecorderReturn {
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordedKey, setRecordedKey] = useState<string | null>(null);
+  const [state, setState] = useState<RecorderState>("idle");
+  const [liveModifiers, setLiveModifiers] = useState<string[]>([]);
+  const [capturedCombo, setCapturedCombo] = useState<HotkeyCombo | null>(null);
   const onRecordRef = useRef(onRecord);
   onRecordRef.current = onRecord;
 
   const startRecording = useCallback(() => {
-    setIsRecording(true);
-    setRecordedKey(null);
+    setState("recording");
+    setLiveModifiers([]);
+    setCapturedCombo(null);
+    window.api?.startHotkeyRecording();
   }, []);
 
   const cancelRecording = useCallback(() => {
-    setIsRecording(false);
-    setRecordedKey(null);
+    setState("idle");
+    setLiveModifiers([]);
+    setCapturedCombo(null);
+    window.api?.stopHotkeyRecording();
   }, []);
 
+  const saveRecording = useCallback(() => {
+    if (capturedCombo?.key) {
+      const accel = comboToAccelerator(capturedCombo);
+      if (accel) onRecordRef.current(accel);
+    }
+    // Signal main process to re-register the hotkey listener
+    window.api?.stopHotkeyRecording();
+    setState("idle");
+    setLiveModifiers([]);
+    setCapturedCombo(null);
+  }, [capturedCombo]);
+
+  // Listen for IPC events from main process
   useEffect(() => {
-    if (!isRecording) return;
+    if (state !== "recording" || !window.api) return;
 
-    const handler = (e: KeyboardEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
+    const removeModifiers = window.api.onHotkeyRecordModifiers((modifiers) => {
+      setLiveModifiers(modifiers);
+    });
 
-      const accelerator = eventToAccelerator(e);
-      if (accelerator) {
-        setRecordedKey(accelerator);
-        setIsRecording(false);
-        onRecordRef.current(accelerator);
-      }
-    };
+    const removeCaptured = window.api.onHotkeyRecordCaptured((combo) => {
+      setCapturedCombo(combo);
+      setLiveModifiers([]);
+      setState("captured");
+    });
 
-    // Use capture phase to intercept before anything else
-    window.addEventListener("keydown", handler, true);
+    const removeCancel = window.api.onHotkeyRecordCancel(() => {
+      setState("idle");
+      setLiveModifiers([]);
+      setCapturedCombo(null);
+    });
+
     return () => {
-      window.removeEventListener("keydown", handler, true);
+      removeModifiers();
+      removeCaptured();
+      removeCancel();
     };
-  }, [isRecording]);
+  }, [state]);
 
-  // Cancel on blur (user clicked away)
+  // Stop main process recording when component unmounts during recording
   useEffect(() => {
-    if (!isRecording) return;
-
-    const onBlur = () => {
-      setIsRecording(false);
-      setRecordedKey(null);
+    return () => {
+      window.api?.stopHotkeyRecording();
     };
-    window.addEventListener("blur", onBlur);
-    return () => window.removeEventListener("blur", onBlur);
-  }, [isRecording]);
+  }, []);
 
-  return { isRecording, startRecording, cancelRecording, recordedKey };
+  return {
+    state,
+    liveModifiers,
+    capturedCombo,
+    startRecording,
+    cancelRecording,
+    saveRecording,
+  };
 }

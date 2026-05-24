@@ -3,14 +3,71 @@ import { getDb } from "../lib/db.js";
 
 const models = new Hono();
 
-// Voice model families we care about from models.dev
-const VOICE_FAMILIES = new Set([
-  "whisper",
-  "tts",
-  "elevenlabs",
-  "deepgram",
-  "azure-speech",
-]);
+interface AvailableModel {
+  provider_id: string;
+  provider_name: string;
+  model_id: string;
+  model_name: string;
+  family: string;
+  type: "voice" | "llm";
+  cost_input?: number;
+  cost_output?: number;
+}
+
+// Speech-to-text model families from models.dev
+const STT_FAMILIES = new Set(["whisper", "deepgram"]);
+
+// Hardcoded transcription models for providers missing from models.dev registry
+const BUILTIN_VOICE_MODELS: AvailableModel[] = [
+  {
+    provider_id: "openai",
+    provider_name: "OpenAI",
+    model_id: "openai/whisper-1",
+    model_name: "Whisper V2",
+    family: "whisper",
+    type: "voice",
+  },
+  {
+    provider_id: "openai",
+    provider_name: "OpenAI",
+    model_id: "openai/gpt-4o-transcribe",
+    model_name: "GPT-4o Transcribe",
+    family: "whisper",
+    type: "voice",
+  },
+  {
+    provider_id: "openai",
+    provider_name: "OpenAI",
+    model_id: "openai/gpt-4o-mini-transcribe",
+    model_name: "GPT-4o Mini Transcribe",
+    family: "whisper",
+    type: "voice",
+  },
+  {
+    provider_id: "deepgram",
+    provider_name: "Deepgram",
+    model_id: "deepgram/nova-3",
+    model_name: "Nova 3",
+    family: "deepgram",
+    type: "voice",
+  },
+  {
+    provider_id: "deepgram",
+    provider_name: "Deepgram",
+    model_id: "deepgram/nova-2",
+    model_name: "Nova 2",
+    family: "deepgram",
+    type: "voice",
+  },
+  {
+    provider_id: "elevenlabs",
+    provider_name: "ElevenLabs",
+    model_id: "elevenlabs/scribe_v1",
+    model_name: "Scribe V1",
+    family: "elevenlabs",
+    type: "voice",
+  },
+];
 
 // In-memory cache for models.dev data
 let modelsCache: { data: unknown; fetchedAt: number } | null = null;
@@ -46,22 +103,14 @@ interface RegistryProvider {
   [key: string]: unknown;
 }
 
-interface AvailableModel {
-  provider_id: string;
-  provider_name: string;
-  model_id: string;
-  model_name: string;
-  family: string;
-  type: "voice" | "llm";
-  cost_input?: number;
-  cost_output?: number;
-}
-
-// Get available models from models.dev, filtered to voice agents and LLMs
+// Get available models from models.dev, filtered to STT voice models and LLMs
 models.get("/available", async (c) => {
   try {
     const registry = await fetchModelsFromRegistry();
     const available: AvailableModel[] = [];
+
+    // Track builtin model IDs so we don't duplicate
+    const builtinIds = new Set(BUILTIN_VOICE_MODELS.map((m) => m.model_id));
 
     for (const [providerId, providerData] of Object.entries(registry)) {
       const provider = providerData as RegistryProvider;
@@ -72,16 +121,17 @@ models.get("/available", async (c) => {
         const inputMods = model.modalities?.input ?? [];
         const outputMods = model.modalities?.output ?? [];
 
-        // Voice models: have audio input or audio output, or known voice families
-        const isVoice =
-          VOICE_FAMILIES.has(family) ||
-          inputMods.includes("audio") ||
-          outputMods.includes("audio");
+        // STT voice models: audio input + text output, or known STT families
+        const isSTT =
+          (STT_FAMILIES.has(family) &&
+            inputMods.includes("audio") &&
+            outputMods.includes("text")) ||
+          (inputMods.includes("audio") && outputMods.includes("text"));
 
         // LLM models: text input + text output
         const isLLM = inputMods.includes("text") && outputMods.includes("text");
 
-        if (isVoice) {
+        if (isSTT && !builtinIds.has(model.id)) {
           available.push({
             provider_id: providerId,
             provider_name: provider.name ?? providerId,
@@ -94,7 +144,7 @@ models.get("/available", async (c) => {
           });
         }
 
-        if (isLLM && !isVoice) {
+        if (isLLM && !isSTT) {
           available.push({
             provider_id: providerId,
             provider_name: provider.name ?? providerId,
@@ -108,6 +158,9 @@ models.get("/available", async (c) => {
         }
       }
     }
+
+    // Add builtin voice models
+    available.push(...BUILTIN_VOICE_MODELS);
 
     return c.json(available);
   } catch (err) {

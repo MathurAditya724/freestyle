@@ -1,5 +1,11 @@
+import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
+import { z } from "zod/v4";
 import { getDb } from "../lib/db.js";
+
+const settingValueSchema = z.object({
+  value: z.string(),
+});
 
 const settings = new Hono();
 
@@ -33,14 +39,10 @@ settings.get("/:key", (c) => {
 });
 
 // Upsert a setting
-settings.put("/:key", async (c) => {
+settings.put("/:key", zValidator("json", settingValueSchema), async (c) => {
   const db = getDb();
   const key = c.req.param("key");
-  const body = await c.req.json<{ value: string }>();
-
-  if (body.value === undefined || body.value === null) {
-    return c.json({ error: "value is required" }, 400);
-  }
+  const body = c.req.valid("json");
 
   db.prepare(
     `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))

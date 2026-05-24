@@ -13,12 +13,13 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@renderer/components/ui/sidebar";
-import { Clock, Cpu, MessageSquare, Sliders } from "lucide-react";
+import { Book, Clock, Cpu, MessageSquare, Sliders } from "lucide-react";
 import { NavLink, Outlet } from "react-router";
 
 const navItems = [
   { to: "/settings/general", label: "General", icon: Sliders },
   { to: "/settings/models", label: "Models", icon: Cpu },
+  { to: "/settings/dictionary", label: "Dictionary", icon: Book },
   { to: "/settings/history", label: "History", icon: Clock },
   { to: "/settings/feedback", label: "Feedback", icon: MessageSquare },
 ];
@@ -32,19 +33,19 @@ export default function SettingsLayout(): React.JSX.Element {
           className="h-9 shrink-0"
           style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
         />
-        <SidebarHeader className="flex flex-row items-center gap-2 px-4 py-2">
+        <SidebarHeader className="flex flex-row items-center gap-2.5 px-4 py-2">
           <img
             src={markLight}
             alt="Freestyle"
-            className="block dark:hidden h-5 w-5"
+            className="block dark:hidden h-7 w-7"
           />
           <img
             src={markDark}
             alt="Freestyle"
-            className="hidden dark:block h-5 w-5"
+            className="hidden dark:block h-7 w-7"
           />
-          <span className="serif text-base font-semibold tracking-tight">
-            Settings
+          <span className="serif text-lg font-semibold tracking-tight">
+            Freestyle
           </span>
         </SidebarHeader>
         <SidebarContent>
