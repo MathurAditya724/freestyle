@@ -1,3 +1,4 @@
+import { getApiBase } from "@renderer/lib/api";
 import { cn } from "@renderer/lib/utils";
 import {
   Check,
@@ -13,8 +14,6 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-
-const API_BASE = "http://localhost:4649";
 
 // Popular providers shown first when adding
 const POPULAR_PROVIDERS = [
@@ -90,9 +89,9 @@ export default function ModelsPage(): React.JSX.Element {
   const loadData = useCallback(async () => {
     try {
       const [availRes, configRes, keysRes] = await Promise.all([
-        fetch(`${API_BASE}/api/models/available`),
-        fetch(`${API_BASE}/api/models/configured`),
-        fetch(`${API_BASE}/api/keys`),
+        fetch(`${getApiBase()}/api/models/available`),
+        fetch(`${getApiBase()}/api/models/configured`),
+        fetch(`${getApiBase()}/api/keys`),
       ]);
       if (availRes.ok) setAvailable(await availRes.json());
       if (configRes.ok) setConfigured(await configRes.json());
@@ -171,7 +170,7 @@ export default function ModelsPage(): React.JSX.Element {
 
   const saveKeyAndProceed = useCallback(async () => {
     if (!keyValue.trim() || !selectedProvider) return;
-    await fetch(`${API_BASE}/api/keys`, {
+    await fetch(`${getApiBase()}/api/keys`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -187,7 +186,7 @@ export default function ModelsPage(): React.JSX.Element {
   const addModel = useCallback(
     async (model: AvailableModel) => {
       const sameType = configured.filter((c) => c.type === model.type);
-      await fetch(`${API_BASE}/api/models/configured`, {
+      await fetch(`${getApiBase()}/api/models/configured`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -205,7 +204,7 @@ export default function ModelsPage(): React.JSX.Element {
 
   const removeModel = useCallback(
     async (id: number) => {
-      await fetch(`${API_BASE}/api/models/configured/${id}`, {
+      await fetch(`${getApiBase()}/api/models/configured/${id}`, {
         method: "DELETE",
       });
       loadData();
@@ -215,7 +214,7 @@ export default function ModelsPage(): React.JSX.Element {
 
   const setDefault = useCallback(
     async (id: number) => {
-      await fetch(`${API_BASE}/api/models/configured/${id}/default`, {
+      await fetch(`${getApiBase()}/api/models/configured/${id}/default`, {
         method: "PUT",
       });
       loadData();
@@ -226,7 +225,7 @@ export default function ModelsPage(): React.JSX.Element {
   const saveEditKey = useCallback(
     async (provider: string) => {
       if (!editKeyValue.trim()) return;
-      await fetch(`${API_BASE}/api/keys`, {
+      await fetch(`${getApiBase()}/api/keys`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider, key: editKeyValue.trim() }),
@@ -245,13 +244,15 @@ export default function ModelsPage(): React.JSX.Element {
       const models = configured.filter((m) => m.provider === providerId);
       await Promise.all(
         models.map((m) =>
-          fetch(`${API_BASE}/api/models/configured/${m.id}`, {
+          fetch(`${getApiBase()}/api/models/configured/${m.id}`, {
             method: "DELETE",
           }),
         ),
       );
       // Remove API key
-      await fetch(`${API_BASE}/api/keys/${providerId}`, { method: "DELETE" });
+      await fetch(`${getApiBase()}/api/keys/${providerId}`, {
+        method: "DELETE",
+      });
       loadData();
     },
     [configured, loadData],

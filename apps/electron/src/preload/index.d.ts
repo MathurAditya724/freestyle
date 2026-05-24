@@ -7,6 +7,7 @@ declare global {
       pasteText: (text: string) => Promise<void>;
       updateHotkey: (hotkey: string) => void;
       hidePill: () => void;
+      getServerPort: () => Promise<number>;
       onHotkeyDown: (callback: () => void) => () => void;
       onHotkeyUp: (callback: () => void) => () => void;
     };

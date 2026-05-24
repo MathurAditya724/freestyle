@@ -3,6 +3,8 @@
  * Sends raw PCM16 audio chunks to the server, receives partial/final transcripts.
  */
 
+import { getPCMProcessorUrl } from "./pcm-processor";
+
 const TARGET_RATE = 16000;
 
 export interface StreamerCallbacks {
@@ -18,7 +20,7 @@ export class Streamer {
   private stream: MediaStream | null = null;
   private ctx: AudioContext | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
-  private processor: ScriptProcessorNode | null = null;
+  private workletNode: AudioWorkletNode | null = null;
   private sessionReady = false;
   private pendingChunks: ArrayBuffer[] = [];
   private closed = false;
@@ -65,12 +67,11 @@ export class Streamer {
     this.ctx = new AudioContext();
     this.source = this.ctx.createMediaStreamSource(this.stream);
 
-    // Use ScriptProcessorNode for PCM extraction (deprecated but widely supported)
-    const bufferSize = 4096;
-    this.processor = this.ctx.createScriptProcessor(bufferSize, 1, 1);
-    this.processor.onaudioprocess = (e) => {
+    await this.ctx.audioWorklet.addModule(getPCMProcessorUrl());
+    this.workletNode = new AudioWorkletNode(this.ctx, "pcm-processor");
+    this.workletNode.port.onmessage = (e: MessageEvent) => {
       if (this.closed) return;
-      const input = e.inputBuffer.getChannelData(0);
+      const input = new Float32Array(e.data);
       const pcm16 = downsampleAndEncode(
         input,
         this.ctx!.sampleRate,
@@ -79,8 +80,8 @@ export class Streamer {
       this.sendAudio(pcm16.buffer as ArrayBuffer);
     };
 
-    this.source.connect(this.processor);
-    this.processor.connect(this.ctx.destination);
+    this.source.connect(this.workletNode);
+    this.workletNode.connect(this.ctx.destination);
 
     return this.stream;
   }
@@ -178,19 +179,23 @@ export class Streamer {
 
     ws.addEventListener("close", () => {
       if (!this.closed) {
-        // Unexpected close
+        this.sessionReady = false;
+        this.pendingChunks = [];
+        setTimeout(() => {
+          if (!this.closed) this.openWebSocket();
+        }, 1000);
       }
     });
   }
 
   private stopCapture(): void {
     try {
-      this.processor?.disconnect();
+      this.workletNode?.disconnect();
     } catch {}
     try {
       this.source?.disconnect();
     } catch {}
-    this.processor = null;
+    this.workletNode = null;
     this.source = null;
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;

@@ -1,10 +1,10 @@
 import { Orb } from "@renderer/components/ui/orb";
+import { getApiBase } from "@renderer/lib/api";
 import { Recorder } from "@renderer/lib/recorder";
 import { Streamer } from "@renderer/lib/streamer";
 import { Check, Loader2, Mic } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const API_BASE = "http://localhost:4649";
 const BARS = 14;
 const RISE = 0.55;
 const FALL = 0.22;
@@ -131,7 +131,7 @@ export default function AppPage(): React.JSX.Element {
 
       // Try to also open a streaming connection for real-time partial text
       try {
-        const streamer = new Streamer(API_BASE, {
+        const streamer = new Streamer(getApiBase(), {
           onConfig: (config) => {
             setUseStreaming(config.streaming);
           },
@@ -195,7 +195,7 @@ export default function AppPage(): React.JSX.Element {
         return;
       }
 
-      const res = await fetch(`${API_BASE}/api/transcribe`, {
+      const res = await fetch(`${getApiBase()}/api/transcribe`, {
         method: "POST",
         body: wavBlob,
         headers: { "Content-Type": "audio/wav" },
