@@ -97,14 +97,15 @@ function getAppWindowPosition(): { x: number; y: number } {
   }
 
   const margin = 20;
+  const edgeMargin = 8; // tighter margin for edge-aligned positions
   switch (position) {
     case "top-center":
       return { x: Math.round((width - APP_WIDTH) / 2), y: margin };
     case "top-right":
-      return { x: width - APP_WIDTH - margin, y: margin };
+      return { x: width - APP_WIDTH - edgeMargin, y: margin };
     case "bottom-right":
       return {
-        x: width - APP_WIDTH - margin,
+        x: width - APP_WIDTH - edgeMargin,
         y: height - APP_HEIGHT - margin,
       };
     case "bottom-center":
