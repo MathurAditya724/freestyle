@@ -1,0 +1,18 @@
+{
+  "name": "@freestyle/workspace",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "format": "biome check --write .",
+    "prepare": "is-ci || husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.15",
+    "husky": "^9.1.7",
+    "is-ci": "^4.1.0",
+    "nano-staged": "^1.0.2",
+    "turbo": "^2.9.14"
+  },
+  "packageManager": "pnpm@10.32.1"
+}
