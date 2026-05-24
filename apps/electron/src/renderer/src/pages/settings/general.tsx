@@ -8,12 +8,12 @@ import { getApiBase } from "@renderer/lib/api";
 import { cn } from "@renderer/lib/utils";
 import {
   Download,
-  Globe,
   Keyboard,
-  MapPin,
+  Languages,
   Mic,
   Monitor,
   Moon,
+  Replace,
   Sun,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -371,7 +371,7 @@ export default function GeneralSettingsPage(): React.JSX.Element {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Globe className="text-muted-foreground h-4 w-4 shrink-0" />
+          <Languages className="text-muted-foreground h-4 w-4 shrink-0" />
           <select
             value={language}
             onChange={(e) => handleLanguageChange(e.target.value)}
@@ -405,13 +405,13 @@ export default function GeneralSettingsPage(): React.JSX.Element {
       {/* Pill Position */}
       <div className="space-y-3">
         <div>
-          <h2 className="text-sm font-medium">Pill Position</h2>
+          <h2 className="text-sm font-medium">Widget Position</h2>
           <p className="text-muted-foreground text-sm">
-            Choose where the transcription pill appears on screen.
+            Choose where the transcription widget appears on screen.
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <MapPin className="text-muted-foreground h-4 w-4 shrink-0" />
+          <Replace className="text-muted-foreground h-4 w-4 shrink-0" />
           <div className="flex flex-wrap gap-2">
             {[
               { value: "bottom-center", label: "Bottom Center" },
