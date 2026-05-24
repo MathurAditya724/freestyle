@@ -656,15 +656,6 @@ app.whenReady().then(() => {
 
         const mappedKey = keyMap[keyName] || keyName;
 
-        // Fn key is allowed without modifiers; other keys need at least one modifier
-        if (
-          uniqueModifiers.length === 0 &&
-          mappedKey !== "Fn" &&
-          !/^F\d{1,2}$/.test(mappedKey)
-        ) {
-          return;
-        }
-
         // Send the captured combo to the renderer
         settingsWindow?.webContents.send("hotkey-record:captured", {
           modifiers: uniqueModifiers,
@@ -917,12 +908,6 @@ function modifiersMatch(
 function isValidAccelerator(accel: string): boolean {
   if (!accel || typeof accel !== "string") return false;
   if (!/^[\x20-\x7E]+$/.test(accel)) return false;
-  if (
-    !accel.includes("+") &&
-    !/^F\d{1,2}$/.test(accel) &&
-    accel.toLowerCase() !== "fn"
-  )
-    return false;
   if (accel.endsWith("+")) return false;
   const parts = accel.split("+");
   if (parts.some((p) => !p.trim())) return false;
