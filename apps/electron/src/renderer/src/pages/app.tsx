@@ -469,10 +469,7 @@ export default function AppPage(): React.JSX.Element {
           )}
 
           {state === "transcribing" && (
-            <div
-              className="inline-flex items-center gap-2"
-              style={{ padding: "0 8px" }}
-            >
+            <>
               <div
                 style={{
                   width: 32,
@@ -488,51 +485,95 @@ export default function AppPage(): React.JSX.Element {
                   className="h-full w-full"
                 />
               </div>
-              <span style={{ color: "#a1a1aa", fontSize: 13 }}>
-                {partialText ? partialText.slice(-30) : "Transcribing..."}
-              </span>
-            </div>
-          )}
-
-          {state === "pasted" && (
-            <div
-              className="inline-flex items-center gap-2"
-              style={{ padding: "0 8px" }}
-            >
-              <Check size={16} style={{ color: "#8AB62A" }} />
               <span
                 style={{
                   color: "#a1a1aa",
                   fontSize: 13,
-                  maxWidth: 240,
+                  flex: 1,
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
+                  paddingRight: 8,
                 }}
               >
+                {partialText ? partialText.slice(-30) : "Transcribing..."}
+              </span>
+            </>
+          )}
+
+          {state === "pasted" && (
+            <>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  overflow: "hidden",
+                  flexShrink: 0,
+                }}
+              >
+                <Orb
+                  colors={["#8AB62A", "#6B8F12"]}
+                  agentState={null}
+                  className="h-full w-full"
+                />
+              </div>
+              <span
+                style={{
+                  color: "#a1a1aa",
+                  fontSize: 13,
+                  flex: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  paddingRight: 8,
+                }}
+              >
+                <Check
+                  size={14}
+                  style={{
+                    color: "#8AB62A",
+                    display: "inline",
+                    verticalAlign: "middle",
+                    marginRight: 4,
+                  }}
+                />
                 {message || "Pasted"}
               </span>
-            </div>
+            </>
           )}
 
           {state === "error" && (
-            <div
-              className="inline-flex items-center gap-2"
-              style={{ padding: "0 8px" }}
-            >
+            <>
               <div
                 style={{
-                  width: 10,
-                  height: 10,
+                  width: 32,
+                  height: 32,
                   borderRadius: "50%",
-                  background: "#DD6E4E",
+                  overflow: "hidden",
                   flexShrink: 0,
                 }}
-              />
-              <span style={{ color: "#a1a1aa", fontSize: 13 }}>
+              >
+                <Orb
+                  colors={["#DD6E4E", "#B85C3A"]}
+                  agentState={null}
+                  className="h-full w-full"
+                />
+              </div>
+              <span
+                style={{
+                  color: "#a1a1aa",
+                  fontSize: 13,
+                  flex: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  paddingRight: 8,
+                }}
+              >
                 {message || "Error"}
               </span>
-            </div>
+            </>
           )}
 
           {state === "idle" && (

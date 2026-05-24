@@ -204,6 +204,25 @@ function createSettingsWindow(): void {
     // file doesn't exist = not done
   }
 
+  // Also consider onboarding done if the DB has any configured models
+  // (existing users who never went through onboarding)
+  if (!onboardingDone) {
+    try {
+      const dbPath = process.env.FREESTYLE_DB_PATH;
+      if (dbPath) {
+        const { DatabaseSync } = require("node:sqlite");
+        const db = new DatabaseSync(dbPath);
+        const row = db
+          .prepare("SELECT COUNT(*) as count FROM model_configs")
+          .get() as { count: number } | undefined;
+        db.close();
+        if (row && row.count > 0) onboardingDone = true;
+      }
+    } catch {
+      // DB may not exist yet -- that's fine, show onboarding
+    }
+  }
+
   settingsWindow.loadURL(
     getRendererURL(onboardingDone ? "/settings" : "/onboarding"),
   );
