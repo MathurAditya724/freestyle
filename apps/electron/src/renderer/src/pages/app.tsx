@@ -107,7 +107,6 @@ export default function AppPage(): React.JSX.Element {
     try {
       // Start the recorder (captures audio for REST transcription)
       const stream = await recorderRef.current.start();
-      console.log("[pill] Recorder started, got stream");
 
       if (!wantsMicRef.current) {
         recorderRef.current.cancel();
@@ -130,13 +129,11 @@ export default function AppPage(): React.JSX.Element {
       try {
         const streamer = new Streamer(API_BASE, {
           onConfig: (config) => {
-            console.log("[pill] Stream config:", config);
             setUseStreaming(config.streaming);
           },
-          onReady: () => console.log("[pill] Stream ready"),
+          onReady: () => {},
           onPartial: (text) => setPartialText(text),
           onFinal: async (text) => {
-            console.log("[pill] Stream final:", text.slice(0, 50));
             if (text.trim()) {
               await window.api.pasteText(text);
               setState("pasted");
@@ -144,19 +141,16 @@ export default function AppPage(): React.JSX.Element {
               setTimeout(() => { setState("idle"); setMessage(""); setPartialText(""); }, 1500);
             }
           },
-          onError: (msg) => console.warn("[pill] Stream error:", msg),
+          onError: () => {},
         });
         streamerRef.current = streamer;
         // Start the streamer's mic separately (it gets its own stream)
         await streamer.start();
-        console.log("[pill] Streamer connected");
-      } catch (streamErr) {
+      } catch {
         // Streaming is optional -- REST fallback always works
-        console.warn("[pill] Streaming unavailable, will use REST:", streamErr);
         streamerRef.current = null;
       }
     } catch (err) {
-      console.error("[pill] Failed to start recording:", err);
       wantsMicRef.current = false;
       setState("error");
       setMessage(err instanceof Error ? err.message : "Mic access denied");
@@ -217,7 +211,6 @@ export default function AppPage(): React.JSX.Element {
       setMessage(text.length > 40 ? `${text.slice(0, 40)}...` : text);
       setTimeout(() => { setState("idle"); setMessage(""); setPartialText(""); }, 1500);
     } catch (err) {
-      console.error("Transcription failed:", err);
       setState("error");
       setMessage(err instanceof Error ? err.message : "Transcription failed");
       setTimeout(() => { setState("idle"); setMessage(""); }, 2500);
@@ -244,7 +237,6 @@ export default function AppPage(): React.JSX.Element {
     const ipc = window.electron?.ipcRenderer;
     if (!ipc) return;
     const handler = (_: unknown, isVisible: boolean) => {
-      console.log("[pill] IPC visibility:", isVisible, "state:", stateRef.current);
       if (isVisible && stateRef.current === "idle") startRecording();
       else if (!isVisible && stateRef.current === "recording") cancelRecording();
     };
@@ -254,11 +246,9 @@ export default function AppPage(): React.JSX.Element {
 
   useEffect(() => {
     const onFocus = () => {
-      console.log("[pill] window focus, state:", stateRef.current);
       if (stateRef.current === "idle") startRecording();
     };
     const onBlur = () => {
-      console.log("[pill] window blur, state:", stateRef.current);
       if (stateRef.current === "recording") cancelRecording();
     };
     window.addEventListener("focus", onFocus);
@@ -268,10 +258,8 @@ export default function AppPage(): React.JSX.Element {
 
   // Start on mount
   useEffect(() => {
-    console.log("[pill] mounted, starting recording");
     startRecording();
     return () => {
-      console.log("[pill] unmounting, cleaning up");
       wantsMicRef.current = false;
       stopVisualization();
       streamerRef.current?.close();
