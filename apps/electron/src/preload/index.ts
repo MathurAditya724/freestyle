@@ -1,8 +1,13 @@
 import { electronAPI } from "@electron-toolkit/preload";
-import { contextBridge } from "electron";
+import { contextBridge, ipcRenderer } from "electron";
 
 // Custom APIs for renderer
-const api = {};
+const api = {
+  pasteText: (text: string): Promise<void> =>
+    ipcRenderer.invoke("paste:text", text),
+  updateHotkey: (hotkey: string): void =>
+    ipcRenderer.send("hotkey:update", hotkey),
+};
 
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise
