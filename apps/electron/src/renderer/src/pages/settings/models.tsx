@@ -666,20 +666,18 @@ export default function ModelsPage(): React.JSX.Element {
                     <button
                       type="button"
                       onClick={() => startEditProvider(entry.provider)}
-                      className="text-muted-foreground hover:text-foreground flex items-center gap-1 rounded px-2 py-1 text-xs"
+                      className="text-muted-foreground hover:text-foreground rounded p-1.5"
                       title="Edit API key"
                     >
-                      <Pencil size={12} />
-                      Edit
+                      <Pencil size={14} />
                     </button>
                     <button
                       type="button"
                       onClick={() => tryDeleteProvider(entry.provider)}
-                      className="text-muted-foreground hover:text-destructive flex items-center gap-1 rounded px-2 py-1 text-xs"
+                      className="text-muted-foreground hover:text-destructive rounded p-1.5"
                       title="Delete provider"
                     >
-                      <Trash2 size={12} />
-                      Delete
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 </div>
