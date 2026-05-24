@@ -232,56 +232,31 @@ export default function AppPage(): React.JSX.Element {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // -- Visibility management --
+  // Hold-to-record: hotkey down = start, hotkey up = commit
   useEffect(() => {
-    const ipc = window.electron?.ipcRenderer;
-    if (!ipc) return;
-    const handler = (_: unknown, isVisible: boolean) => {
-      if (isVisible && stateRef.current === "idle") startRecording();
-      else if (!isVisible && stateRef.current === "recording") cancelRecording();
-    };
-    ipc.on("pill:visibility", handler);
-    return () => { ipc.removeListener("pill:visibility", handler); };
-  }, [startRecording, cancelRecording]);
-
-  useEffect(() => {
-    const onFocus = () => {
-      if (stateRef.current === "idle") startRecording();
-    };
-    const onBlur = () => {
-      if (stateRef.current === "recording") cancelRecording();
-    };
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("blur", onBlur);
-    return () => { window.removeEventListener("focus", onFocus); window.removeEventListener("blur", onBlur); };
-  }, [startRecording, cancelRecording]);
-
-  // Start on mount
-  useEffect(() => {
-    startRecording();
+    const removeDown = window.api.onHotkeyDown(() => {
+      if (stateRef.current === "idle") {
+        startRecording();
+      }
+    });
+    const removeUp = window.api.onHotkeyUp(() => {
+      if (stateRef.current === "recording") {
+        commitRecording();
+      }
+    });
     return () => {
-      wantsMicRef.current = false;
-      stopVisualization();
-      streamerRef.current?.close();
-      recorderRef.current.cancel();
+      removeDown();
+      removeUp();
+    };
+  }, [startRecording, commitRecording]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cancelRecording();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Keyboard: Enter/Space to commit, Escape to cancel
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (state === "recording" && (e.key === "Enter" || e.key === " ")) {
-        e.preventDefault();
-        commitRecording();
-      } else if (state === "recording" && e.key === "Escape") {
-        e.preventDefault();
-        cancelRecording();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [state, commitRecording, cancelRecording]);
 
   // -- Render --
   const svgWidth = 140;
@@ -395,7 +370,7 @@ export default function AppPage(): React.JSX.Element {
           {state === "idle" && (
             <div className="inline-flex items-center gap-2" style={{ padding: "0 8px" }}>
               <Mic size={17} style={{ opacity: 0.5, color: "#a1a1aa" }} />
-              <span style={{ opacity: 0.5, color: "#a1a1aa" }}>Starting...</span>
+              <span style={{ opacity: 0.5, color: "#a1a1aa" }}>Hold hotkey to record</span>
             </div>
           )}
         </div>

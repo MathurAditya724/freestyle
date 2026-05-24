@@ -1,11 +1,12 @@
 import { electronApp, is, optimizer } from "@electron-toolkit/utils";
 import server from "@freestyle/server";
 import { serve } from "@hono/node-server";
+import { GlobalKeyboardListener } from "node-global-key-listener";
+import type { IGlobalKeyEvent, IGlobalKeyDownMap } from "node-global-key-listener";
 import { WebSocketServer } from "ws";
 import {
   app,
   BrowserWindow,
-  globalShortcut,
   ipcMain,
   Menu,
   nativeImage,
@@ -31,6 +32,8 @@ let httpServer: Server | null = null;
 let mainWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+let keyListener: GlobalKeyboardListener | null = null;
+let hotkeyPressed = false;
 
 // Register a custom app:// protocol that serves the renderer files.
 // All non-file paths fall back to index.html so BrowserRouter works in production.
@@ -97,6 +100,8 @@ function createAppWindow(): void {
     skipTaskbar: true,
     roundedCorners: true,
     autoHideMenuBar: true,
+    focusable: false,
+    ...(process.platform === "darwin" ? { type: "panel" as const } : {}),
     ...(process.platform === "linux" ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
@@ -104,29 +109,17 @@ function createAppWindow(): void {
     },
   });
 
+  mainWindow.setAlwaysOnTop(true, "screen-saver");
+  mainWindow.setVisibleOnAllWorkspaces(true, {
+    visibleOnFullScreen: true,
+  });
+
   mainWindow.on("ready-to-show", () => {
-    mainWindow!.show();
-    mainWindow!.webContents.send("pill:visibility", true);
+    mainWindow!.showInactive();
   });
 
   mainWindow.on("closed", () => {
     mainWindow = null;
-  });
-
-  // Lose focus = hide the app pill (skip in dev for easier debugging)
-  mainWindow.on("blur", () => {
-    if (mainWindow && !is.dev) {
-      mainWindow.hide();
-      mainWindow.webContents.send("pill:visibility", false);
-    }
-  });
-
-  mainWindow.on("show", () => {
-    mainWindow?.webContents.send("pill:visibility", true);
-  });
-
-  mainWindow.on("hide", () => {
-    mainWindow?.webContents.send("pill:visibility", false);
   });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -168,20 +161,22 @@ function createSettingsWindow(): void {
   settingsWindow.loadURL(getRendererURL("/settings"));
 }
 
-function showAppWindow(): void {
+function showPill(): void {
   if (!mainWindow) {
     createAppWindow();
     return;
   }
 
-  if (mainWindow.isVisible()) {
-    mainWindow.hide();
-  } else {
-    // Re-center in case display changed
+  if (!mainWindow.isVisible()) {
     const { x, y } = getAppWindowPosition();
     mainWindow.setPosition(x, y);
-    mainWindow.show();
-    mainWindow.focus();
+    mainWindow.showInactive();
+  }
+}
+
+function hidePill(): void {
+  if (mainWindow?.isVisible()) {
+    mainWindow.hide();
   }
 }
 
@@ -204,10 +199,6 @@ function createTray(): void {
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: "Open App",
-      click: () => showAppWindow(),
-    },
-    {
       label: "Settings",
       click: () => showSettingsWindow(),
     },
@@ -222,7 +213,11 @@ function createTray(): void {
 
   // Left-click: toggle the app window
   tray.on("click", () => {
-    showAppWindow();
+    if (mainWindow?.isVisible()) {
+      hidePill();
+    } else {
+      showPill();
+    }
   });
 
   // Right-click: show context menu
@@ -249,12 +244,10 @@ app.whenReady().then(() => {
 
   // IPC: paste text at cursor
   ipcMain.handle("paste:text", async (_event, text: string) => {
-    // Hide the pill first so the focused app receives the paste
-    if (mainWindow?.isVisible()) {
-      mainWindow.hide();
-    }
-    // Small delay to let the target app regain focus
-    await new Promise((r) => setTimeout(r, 100));
+    // Hide the pill first, then paste into the focused app
+    hidePill();
+    // Small delay for safety before pasting
+    await new Promise((r) => setTimeout(r, 50));
     await pasteIntoFocusedApp(text);
   });
 
@@ -282,7 +275,9 @@ app.whenReady().then(() => {
 
   createTray();
 
-  // Register global hotkey -- load from DB or use default
+  createAppWindow();
+
+  // Register hold-to-record hotkey via node-global-key-listener
   registerHotkey();
 
   // Listen for hotkey changes from the settings UI
@@ -293,76 +288,171 @@ app.whenReady().then(() => {
 
 const DEFAULT_HOTKEY = "Alt+Space";
 
-// Validate that an accelerator string is safe for Electron
+// Map Electron accelerator parts to node-global-key-listener key names
+type HotkeyParts = { modifiers: Set<string>; key: string };
+
+function parseAccelerator(accel: string): HotkeyParts {
+  const parts = accel.split("+").map((p) => p.trim());
+  const key = parts[parts.length - 1];
+  const modifiers = new Set<string>();
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    const mod = parts[i].toLowerCase();
+    if (mod === "alt" || mod === "option") {
+      modifiers.add("LEFT ALT");
+      modifiers.add("RIGHT ALT");
+    } else if (mod === "ctrl" || mod === "control") {
+      modifiers.add("LEFT CTRL");
+      modifiers.add("RIGHT CTRL");
+    } else if (mod === "shift") {
+      modifiers.add("LEFT SHIFT");
+      modifiers.add("RIGHT SHIFT");
+    } else if (
+      mod === "meta" ||
+      mod === "super" ||
+      mod === "command" ||
+      mod === "commandorcontrol" ||
+      mod === "cmdorctrl"
+    ) {
+      modifiers.add("LEFT META");
+      modifiers.add("RIGHT META");
+    }
+  }
+
+  // Map the key part to node-global-key-listener name
+  const keyMap: Record<string, string> = {
+    space: "SPACE",
+    enter: "RETURN",
+    return: "RETURN",
+    escape: "ESCAPE",
+    tab: "TAB",
+    backspace: "BACKSPACE",
+    delete: "DELETE",
+    up: "UP ARROW",
+    down: "DOWN ARROW",
+    left: "LEFT ARROW",
+    right: "RIGHT ARROW",
+  };
+
+  const mappedKey =
+    keyMap[key.toLowerCase()] || key.toUpperCase();
+
+  return { modifiers, key: mappedKey };
+}
+
+// Check if the required modifier keys are held down
+function modifiersMatch(
+  modifiers: Set<string>,
+  isDown: IGlobalKeyDownMap,
+): boolean {
+  if (modifiers.size === 0) return true;
+
+  // Group modifiers by type (left/right variants)
+  const groups: string[][] = [];
+  const seen = new Set<string>();
+
+  for (const mod of modifiers) {
+    if (seen.has(mod)) continue;
+    // Find the paired variant
+    if (mod.startsWith("LEFT ")) {
+      const right = "RIGHT " + mod.slice(5);
+      groups.push([mod, right]);
+      seen.add(mod);
+      seen.add(right);
+    } else if (mod.startsWith("RIGHT ")) {
+      const left = "LEFT " + mod.slice(6);
+      groups.push([left, mod]);
+      seen.add(mod);
+      seen.add(left);
+    } else {
+      groups.push([mod]);
+      seen.add(mod);
+    }
+  }
+
+  // Each group must have at least one key held
+  return groups.every((group) =>
+    group.some((k) => isDown[k as keyof IGlobalKeyDownMap]),
+  );
+}
+
+// Validate that an accelerator string is safe
 function isValidAccelerator(accel: string): boolean {
   if (!accel || typeof accel !== "string") return false;
-  // Must be ASCII only
   if (!/^[\x20-\x7E]+$/.test(accel)) return false;
-  // Must contain at least a "+" (modifier+key) or be a bare F-key
   if (!accel.includes("+") && !/^F\d{1,2}$/.test(accel)) return false;
-  // Must not end with "+"
   if (accel.endsWith("+")) return false;
-  // Parts must not be empty
   const parts = accel.split("+");
   if (parts.some((p) => !p.trim())) return false;
   return true;
 }
 
-function registerHotkey(hotkey?: string): void {
-  globalShortcut.unregisterAll();
-
-  // Try to load from DB if not provided
-  if (!hotkey) {
-    try {
-      const dbPath = process.env["FREESTYLE_DB_PATH"];
-      if (dbPath) {
-        const { DatabaseSync } = require("node:sqlite");
-        const db = new DatabaseSync(dbPath);
-        const row = db
-          .prepare("SELECT value FROM settings WHERE key = 'hotkey'")
-          .get() as { value: string } | undefined;
-        db.close();
-        if (row?.value && isValidAccelerator(row.value)) {
-          hotkey = row.value;
-        }
-      }
-    } catch {
-      // Ignore errors, use default
-    }
-  }
-
-  const key = hotkey && isValidAccelerator(hotkey) ? hotkey : DEFAULT_HOTKEY;
-
+function loadHotkeyFromDB(): string | undefined {
   try {
-    const success = globalShortcut.register(key, () => {
-      showAppWindow();
-    });
-    if (!success) {
-      console.error(`Failed to register hotkey: ${key}`);
-      if (key !== DEFAULT_HOTKEY) {
-        globalShortcut.register(DEFAULT_HOTKEY, () => {
-          showAppWindow();
-        });
+    const dbPath = process.env["FREESTYLE_DB_PATH"];
+    if (dbPath) {
+      const { DatabaseSync } = require("node:sqlite");
+      const db = new DatabaseSync(dbPath);
+      const row = db
+        .prepare("SELECT value FROM settings WHERE key = 'hotkey'")
+        .get() as { value: string } | undefined;
+      db.close();
+      if (row?.value && isValidAccelerator(row.value)) {
+        return row.value;
       }
     }
-  } catch (err) {
-    console.error(`Error registering hotkey: ${key}`, err);
-    // Always try the default as last resort
-    if (key !== DEFAULT_HOTKEY) {
-      try {
-        globalShortcut.register(DEFAULT_HOTKEY, () => {
-          showAppWindow();
-        });
-      } catch {
-        // Give up
-      }
-    }
+  } catch {
+    // Ignore errors
   }
+  return undefined;
 }
 
-// Unregister shortcuts on quit
+function registerHotkey(hotkey?: string): void {
+  // Tear down previous listener
+  if (keyListener) {
+    keyListener.kill();
+    keyListener = null;
+  }
+  hotkeyPressed = false;
+
+  if (!hotkey) {
+    hotkey = loadHotkeyFromDB();
+  }
+
+  const accel =
+    hotkey && isValidAccelerator(hotkey) ? hotkey : DEFAULT_HOTKEY;
+  const { modifiers, key: triggerKey } = parseAccelerator(accel);
+
+  keyListener = new GlobalKeyboardListener();
+
+  const listener = (
+    e: IGlobalKeyEvent,
+    isDown: IGlobalKeyDownMap,
+  ): void => {
+    if (e.name !== triggerKey) return;
+
+    if (e.state === "DOWN" && !hotkeyPressed) {
+      // Check modifiers match
+      if (!modifiersMatch(modifiers, isDown)) return;
+
+      hotkeyPressed = true;
+      showPill();
+      mainWindow?.webContents.send("hotkey:down");
+    } else if (e.state === "UP" && hotkeyPressed) {
+      hotkeyPressed = false;
+      mainWindow?.webContents.send("hotkey:up");
+    }
+  };
+
+  keyListener.addListener(listener);
+}
+
+// Clean up key listener on quit
 app.on("will-quit", () => {
-  globalShortcut.unregisterAll();
+  if (keyListener) {
+    keyListener.kill();
+    keyListener = null;
+  }
 });
 
 // Keep app running in background when windows are closed (tray stays active)
