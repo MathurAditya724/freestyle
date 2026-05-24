@@ -268,17 +268,33 @@ app.whenReady().then(() => {
 
   // Start the Hono HTTP server with WebSocket support
   const wss = new WebSocketServer({ noServer: true });
-  httpServer = serve(
-    {
-      fetch: server.fetch,
-      port: DEFAULT_PORT,
-      websocket: { server: wss },
-    },
-    (info) => {
-      serverPort = info.port;
-      console.log(`Server running on http://localhost:${info.port}`);
-    },
-  );
+
+  function startServer(port: number): void {
+    httpServer = serve(
+      {
+        fetch: server.fetch,
+        port,
+        websocket: { server: wss },
+      },
+      (info) => {
+        serverPort = info.port;
+        console.log(`Server running on http://localhost:${info.port}`);
+      },
+    );
+
+    httpServer.on("error", (err: NodeJS.ErrnoException) => {
+      if (err.code === "EADDRINUSE" && port === DEFAULT_PORT) {
+        console.warn(
+          `Port ${DEFAULT_PORT} in use, falling back to random port`,
+        );
+        startServer(0);
+      } else {
+        console.error("Server failed to start:", err);
+      }
+    });
+  }
+
+  startServer(DEFAULT_PORT);
 
   createTray();
 

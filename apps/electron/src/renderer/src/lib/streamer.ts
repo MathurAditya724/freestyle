@@ -180,6 +180,7 @@ export class Streamer {
     ws.addEventListener("close", () => {
       if (!this.closed) {
         this.sessionReady = false;
+        this.pendingChunks = [];
         setTimeout(() => {
           if (!this.closed) this.openWebSocket();
         }, 1000);
