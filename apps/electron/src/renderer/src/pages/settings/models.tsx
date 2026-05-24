@@ -1,3 +1,4 @@
+import { cn } from "@renderer/lib/utils";
 import {
   Check,
   ChevronRight,
@@ -12,7 +13,6 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cn } from "@renderer/lib/utils";
 
 const API_BASE = "http://localhost:4649";
 
@@ -71,14 +71,18 @@ export default function ModelsPage(): React.JSX.Element {
 
   // Add-provider wizard state
   const [step, setStep] = useState<Step>("closed");
-  const [selectedProvider, setSelectedProvider] = useState<ProviderInfo | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<ProviderInfo | null>(
+    null,
+  );
   const [providerSearch, setProviderSearch] = useState("");
   const [modelSearch, setModelSearch] = useState("");
   const [keyValue, setKeyValue] = useState("");
   const [showKey, setShowKey] = useState(false);
 
   // Edit key inline
-  const [editingKeyProvider, setEditingKeyProvider] = useState<string | null>(null);
+  const [editingKeyProvider, setEditingKeyProvider] = useState<string | null>(
+    null,
+  );
   const [editKeyValue, setEditKeyValue] = useState("");
   const [showEditKey, setShowEditKey] = useState(false);
   const keyInputRef = useRef<HTMLInputElement>(null);
@@ -110,7 +114,12 @@ export default function ModelsPage(): React.JSX.Element {
     for (const m of available) {
       let p = map.get(m.provider_id);
       if (!p) {
-        p = { id: m.provider_id, name: m.provider_name, voiceModels: [], llmModels: [] };
+        p = {
+          id: m.provider_id,
+          name: m.provider_name,
+          voiceModels: [],
+          llmModels: [],
+        };
         map.set(m.provider_id, p);
       }
       if (m.type === "voice") p.voiceModels.push(m);
@@ -120,7 +129,6 @@ export default function ModelsPage(): React.JSX.Element {
   })();
 
   const keyProviders = new Set(apiKeys.map((k) => k.provider));
-  const configuredProviderIds = new Set(configured.map((m) => m.provider));
 
   // Filter providers for the picker
   const filteredProviders = providers.filter(
@@ -166,7 +174,10 @@ export default function ModelsPage(): React.JSX.Element {
     await fetch(`${API_BASE}/api/keys`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: selectedProvider.id, key: keyValue.trim() }),
+      body: JSON.stringify({
+        provider: selectedProvider.id,
+        key: keyValue.trim(),
+      }),
     });
     await loadData();
     setStep("pick-models");
@@ -194,7 +205,9 @@ export default function ModelsPage(): React.JSX.Element {
 
   const removeModel = useCallback(
     async (id: number) => {
-      await fetch(`${API_BASE}/api/models/configured/${id}`, { method: "DELETE" });
+      await fetch(`${API_BASE}/api/models/configured/${id}`, {
+        method: "DELETE",
+      });
       loadData();
     },
     [loadData],
@@ -202,7 +215,9 @@ export default function ModelsPage(): React.JSX.Element {
 
   const setDefault = useCallback(
     async (id: number) => {
-      await fetch(`${API_BASE}/api/models/configured/${id}/default`, { method: "PUT" });
+      await fetch(`${API_BASE}/api/models/configured/${id}/default`, {
+        method: "PUT",
+      });
       loadData();
     },
     [loadData],
@@ -230,7 +245,9 @@ export default function ModelsPage(): React.JSX.Element {
       const models = configured.filter((m) => m.provider === providerId);
       await Promise.all(
         models.map((m) =>
-          fetch(`${API_BASE}/api/models/configured/${m.id}`, { method: "DELETE" }),
+          fetch(`${API_BASE}/api/models/configured/${m.id}`, {
+            method: "DELETE",
+          }),
         ),
       );
       // Remove API key
@@ -276,10 +293,7 @@ export default function ModelsPage(): React.JSX.Element {
             const llmModels = models.filter((m) => m.type === "llm");
 
             return (
-              <div
-                key={providerId}
-                className="border-border rounded-xl border"
-              >
+              <div key={providerId} className="border-border rounded-xl border">
                 {/* Provider header */}
                 <div className="flex items-center gap-3 px-4 py-3">
                   <div className="bg-secondary flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold uppercase">
@@ -308,14 +322,17 @@ export default function ModelsPage(): React.JSX.Element {
                                   setEditKeyValue("");
                                 }
                               }}
-                              autoFocus
                             />
                             <button
                               type="button"
                               onClick={() => setShowEditKey(!showEditKey)}
                               className="text-muted-foreground hover:text-foreground absolute right-1.5 top-1/2 -translate-y-1/2"
                             >
-                              {showEditKey ? <EyeOff size={10} /> : <Eye size={10} />}
+                              {showEditKey ? (
+                                <EyeOff size={10} />
+                              ) : (
+                                <Eye size={10} />
+                              )}
                             </button>
                           </div>
                           <button
@@ -446,7 +463,11 @@ export default function ModelsPage(): React.JSX.Element {
               <div className="p-6">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-semibold">Add Provider</h3>
-                  <button type="button" onClick={resetWizard} className="text-muted-foreground hover:text-foreground">
+                  <button
+                    type="button"
+                    onClick={resetWizard}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     <X size={20} />
                   </button>
                 </div>
@@ -456,7 +477,6 @@ export default function ModelsPage(): React.JSX.Element {
                   onChange={(e) => setProviderSearch(e.target.value)}
                   placeholder="Search providers..."
                   className="border-border bg-background mb-3 w-full rounded-lg border px-3 py-2 text-sm"
-                  autoFocus
                 />
                 <div className="max-h-80 space-y-1 overflow-y-auto">
                   {popularProviders.length > 0 && !providerSearch && (
@@ -478,10 +498,16 @@ export default function ModelsPage(): React.JSX.Element {
                         <div className="flex-1">
                           <div className="text-sm font-medium">{p.name}</div>
                           <div className="text-muted-foreground text-xs">
-                            {p.voiceModels.length > 0 && `${p.voiceModels.length} voice`}
-                            {p.voiceModels.length > 0 && p.llmModels.length > 0 && ", "}
-                            {p.llmModels.length > 0 && `${p.llmModels.length} LLM`}
-                            {p.voiceModels.length === 0 && p.llmModels.length === 0 && "models"}
+                            {p.voiceModels.length > 0 &&
+                              `${p.voiceModels.length} voice`}
+                            {p.voiceModels.length > 0 &&
+                              p.llmModels.length > 0 &&
+                              ", "}
+                            {p.llmModels.length > 0 &&
+                              `${p.llmModels.length} LLM`}
+                            {p.voiceModels.length === 0 &&
+                              p.llmModels.length === 0 &&
+                              "models"}
                           </div>
                         </div>
                         {keyProviders.has(p.id) && (
@@ -489,7 +515,10 @@ export default function ModelsPage(): React.JSX.Element {
                             Key saved
                           </span>
                         )}
-                        <ChevronRight size={16} className="text-muted-foreground" />
+                        <ChevronRight
+                          size={16}
+                          className="text-muted-foreground"
+                        />
                       </button>
                     ),
                   )}
@@ -509,7 +538,10 @@ export default function ModelsPage(): React.JSX.Element {
                             {p.name.slice(0, 2)}
                           </div>
                           <div className="flex-1 text-sm">{p.name}</div>
-                          <ChevronRight size={14} className="text-muted-foreground" />
+                          <ChevronRight
+                            size={14}
+                            className="text-muted-foreground"
+                          />
                         </button>
                       ))}
                     </>
@@ -530,7 +562,11 @@ export default function ModelsPage(): React.JSX.Element {
                       Enter your API key for {selectedProvider.name}.
                     </p>
                   </div>
-                  <button type="button" onClick={resetWizard} className="text-muted-foreground hover:text-foreground">
+                  <button
+                    type="button"
+                    onClick={resetWizard}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     <X size={20} />
                   </button>
                 </div>
@@ -545,7 +581,6 @@ export default function ModelsPage(): React.JSX.Element {
                       onKeyDown={(e) => {
                         if (e.key === "Enter") saveKeyAndProceed();
                       }}
-                      autoFocus
                     />
                     <button
                       type="button"
@@ -588,7 +623,11 @@ export default function ModelsPage(): React.JSX.Element {
                       Select models to use. Click to add.
                     </p>
                   </div>
-                  <button type="button" onClick={resetWizard} className="text-muted-foreground hover:text-foreground">
+                  <button
+                    type="button"
+                    onClick={resetWizard}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     <X size={20} />
                   </button>
                 </div>
@@ -598,68 +637,82 @@ export default function ModelsPage(): React.JSX.Element {
                   onChange={(e) => setModelSearch(e.target.value)}
                   placeholder="Search models..."
                   className="border-border bg-background mb-3 w-full rounded-lg border px-3 py-2 text-sm"
-                  autoFocus
                 />
                 <div className="max-h-72 space-y-0.5 overflow-y-auto">
                   {[
-                    { label: "Voice", models: selectedProvider.voiceModels, icon: Mic },
-                    { label: "LLM", models: selectedProvider.llmModels, icon: Cpu },
-                  ].map(
-                    ({ label, models: sectionModels, icon: Icon }) => {
-                      const filtered = sectionModels.filter(
-                        (m) =>
-                          !modelSearch ||
-                          m.model_name.toLowerCase().includes(modelSearch.toLowerCase()) ||
-                          m.model_id.toLowerCase().includes(modelSearch.toLowerCase()),
-                      );
-                      if (filtered.length === 0) return null;
-
-                      const alreadyAdded = new Set(
-                        configured
-                          .filter((c) => c.provider === selectedProvider.id)
-                          .map((c) => `${c.model_id}:${c.type}`),
-                      );
-
-                      return (
-                        <div key={label}>
-                          <div className="text-muted-foreground flex items-center gap-1.5 px-1 py-1.5 text-[10px] font-semibold uppercase tracking-wider">
-                            <Icon size={10} /> {label}
-                          </div>
-                          {filtered.slice(0, 30).map((model) => {
-                            const isAdded = alreadyAdded.has(`${model.model_id}:${model.type}`);
-                            return (
-                              <button
-                                key={model.model_id}
-                                type="button"
-                                onClick={() => !isAdded && addModel(model)}
-                                disabled={isAdded}
-                                className={cn(
-                                  "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
-                                  isAdded
-                                    ? "opacity-50"
-                                    : "hover:bg-secondary",
-                                )}
-                              >
-                                <div className="flex-1">
-                                  <div className="font-medium">{model.model_name}</div>
-                                  {model.cost_input != null && (
-                                    <div className="text-muted-foreground text-xs">
-                                      ${model.cost_input}/M input
-                                    </div>
-                                  )}
-                                </div>
-                                {isAdded ? (
-                                  <Check size={14} className="text-primary" />
-                                ) : (
-                                  <Plus size={14} className="text-muted-foreground" />
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      );
+                    {
+                      label: "Voice",
+                      models: selectedProvider.voiceModels,
+                      icon: Mic,
                     },
-                  )}
+                    {
+                      label: "LLM",
+                      models: selectedProvider.llmModels,
+                      icon: Cpu,
+                    },
+                  ].map(({ label, models: sectionModels, icon: Icon }) => {
+                    const filtered = sectionModels.filter(
+                      (m) =>
+                        !modelSearch ||
+                        m.model_name
+                          .toLowerCase()
+                          .includes(modelSearch.toLowerCase()) ||
+                        m.model_id
+                          .toLowerCase()
+                          .includes(modelSearch.toLowerCase()),
+                    );
+                    if (filtered.length === 0) return null;
+
+                    const alreadyAdded = new Set(
+                      configured
+                        .filter((c) => c.provider === selectedProvider.id)
+                        .map((c) => `${c.model_id}:${c.type}`),
+                    );
+
+                    return (
+                      <div key={label}>
+                        <div className="text-muted-foreground flex items-center gap-1.5 px-1 py-1.5 text-[10px] font-semibold uppercase tracking-wider">
+                          <Icon size={10} /> {label}
+                        </div>
+                        {filtered.slice(0, 30).map((model) => {
+                          const isAdded = alreadyAdded.has(
+                            `${model.model_id}:${model.type}`,
+                          );
+                          return (
+                            <button
+                              key={model.model_id}
+                              type="button"
+                              onClick={() => !isAdded && addModel(model)}
+                              disabled={isAdded}
+                              className={cn(
+                                "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                                isAdded ? "opacity-50" : "hover:bg-secondary",
+                              )}
+                            >
+                              <div className="flex-1">
+                                <div className="font-medium">
+                                  {model.model_name}
+                                </div>
+                                {model.cost_input != null && (
+                                  <div className="text-muted-foreground text-xs">
+                                    ${model.cost_input}/M input
+                                  </div>
+                                )}
+                              </div>
+                              {isAdded ? (
+                                <Check size={14} className="text-primary" />
+                              ) : (
+                                <Plus
+                                  size={14}
+                                  className="text-muted-foreground"
+                                />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="mt-4 flex justify-end">
                   <button

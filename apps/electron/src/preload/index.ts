@@ -7,6 +7,17 @@ const api = {
     ipcRenderer.invoke("paste:text", text),
   updateHotkey: (hotkey: string): void =>
     ipcRenderer.send("hotkey:update", hotkey),
+  hidePill: (): void => ipcRenderer.send("pill:hide"),
+  onHotkeyDown: (callback: () => void): (() => void) => {
+    const handler = (): void => callback();
+    ipcRenderer.on("hotkey:down", handler);
+    return () => ipcRenderer.removeListener("hotkey:down", handler);
+  },
+  onHotkeyUp: (callback: () => void): (() => void) => {
+    const handler = (): void => callback();
+    ipcRenderer.on("hotkey:up", handler);
+    return () => ipcRenderer.removeListener("hotkey:up", handler);
+  },
 };
 
 // Use `contextBridge` APIs to expose Electron APIs to

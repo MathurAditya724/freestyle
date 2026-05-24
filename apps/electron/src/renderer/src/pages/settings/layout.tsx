@@ -1,5 +1,5 @@
-import { Clock, MessageSquare, Sliders, Cpu } from "lucide-react";
-import { NavLink, Outlet } from "react-router";
+import markDark from "@renderer/assets/mark-dark.svg";
+import markLight from "@renderer/assets/mark-light.svg";
 import {
   Sidebar,
   SidebarContent,
@@ -13,8 +13,8 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@renderer/components/ui/sidebar";
-import markLight from "@renderer/assets/mark-light.svg";
-import markDark from "@renderer/assets/mark-dark.svg";
+import { Clock, Cpu, MessageSquare, Sliders } from "lucide-react";
+import { NavLink, Outlet } from "react-router";
 
 const navItems = [
   { to: "/settings/general", label: "General", icon: Sliders },
@@ -28,10 +28,21 @@ export default function SettingsLayout(): React.JSX.Element {
     <SidebarProvider className="bg-background h-screen">
       <Sidebar collapsible="none" className="border-sidebar-border border-r">
         {/* Drag region for macOS traffic lights */}
-        <div className="h-9 shrink-0" style={{ WebkitAppRegion: "drag" } as React.CSSProperties} />
+        <div
+          className="h-9 shrink-0"
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        />
         <SidebarHeader className="flex flex-row items-center gap-2 px-4 py-2">
-          <img src={markLight} alt="Freestyle" className="block dark:hidden h-5 w-5" />
-          <img src={markDark} alt="Freestyle" className="hidden dark:block h-5 w-5" />
+          <img
+            src={markLight}
+            alt="Freestyle"
+            className="block dark:hidden h-5 w-5"
+          />
+          <img
+            src={markDark}
+            alt="Freestyle"
+            className="hidden dark:block h-5 w-5"
+          />
           <span className="serif text-base font-semibold tracking-tight">
             Settings
           </span>
@@ -50,9 +61,7 @@ export default function SettingsLayout(): React.JSX.Element {
                             <item.icon
                               className={isActive ? "text-primary" : ""}
                             />
-                            <span
-                              className={isActive ? "font-medium" : ""}
-                            >
+                            <span className={isActive ? "font-medium" : ""}>
                               {item.label}
                             </span>
                           </>
@@ -68,7 +77,10 @@ export default function SettingsLayout(): React.JSX.Element {
       </Sidebar>
       <SidebarInset className="flex-1 overflow-auto">
         {/* Drag region for the content area */}
-        <div className="h-9 shrink-0" style={{ WebkitAppRegion: "drag" } as React.CSSProperties} />
+        <div
+          className="h-9 shrink-0"
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        />
         <div className="px-6 pb-6">
           <Outlet />
         </div>

@@ -22,9 +22,9 @@ settings.get("/", (c) => {
 settings.get("/:key", (c) => {
   const db = getDb();
   const key = c.req.param("key");
-  const row = db
-    .prepare("SELECT value FROM settings WHERE key = ?")
-    .get(key) as { value: string } | undefined;
+  const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(key) as
+    | { value: string }
+    | undefined;
 
   if (!row) {
     return c.json({ error: "Setting not found" }, 404);

@@ -6,6 +6,9 @@ declare global {
     api: {
       pasteText: (text: string) => Promise<void>;
       updateHotkey: (hotkey: string) => void;
+      hidePill: () => void;
+      onHotkeyDown: (callback: () => void) => () => void;
+      onHotkeyUp: (callback: () => void) => () => void;
     };
   }
 }

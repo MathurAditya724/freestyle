@@ -1,11 +1,11 @@
+import {
+  formatAccelerator,
+  useHotkeyRecorder,
+} from "@renderer/hooks/use-hotkey-recorder";
+import { cn } from "@renderer/lib/utils";
 import { Keyboard, Mic, Monitor, Moon, Sparkles, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
-import { cn } from "@renderer/lib/utils";
-import {
-  useHotkeyRecorder,
-  formatAccelerator,
-} from "@renderer/hooks/use-hotkey-recorder";
 
 const API_BASE = "http://localhost:4649";
 
@@ -27,23 +27,23 @@ export default function GeneralSettingsPage(): React.JSX.Element {
   const [llmCleanup, setLlmCleanup] = useState(false);
   const [hotkey, setHotkey] = useState("Alt+Space");
 
-  const handleHotkeyRecorded = useCallback(
-    (accelerator: string) => {
-      setHotkey(accelerator);
-      // Save to DB
-      fetch(`${API_BASE}/api/settings/hotkey`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value: accelerator }),
-      }).catch(() => {});
-      // Notify main process
-      window.api.updateHotkey(accelerator);
-    },
-    [],
-  );
+  const handleHotkeyRecorded = useCallback((accelerator: string) => {
+    setHotkey(accelerator);
+    // Save to DB
+    fetch(`${API_BASE}/api/settings/hotkey`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: accelerator }),
+    }).catch(() => {});
+    // Notify main process
+    window.api.updateHotkey(accelerator);
+  }, []);
 
-  const { isRecording, startRecording: startHotkeyRecording, cancelRecording: cancelHotkeyRecording } =
-    useHotkeyRecorder(handleHotkeyRecorded);
+  const {
+    isRecording,
+    startRecording: startHotkeyRecording,
+    cancelRecording: cancelHotkeyRecording,
+  } = useHotkeyRecorder(handleHotkeyRecorded);
 
   // Load available audio input devices
   useEffect(() => {
@@ -90,17 +90,14 @@ export default function GeneralSettingsPage(): React.JSX.Element {
       .catch(() => {});
   }, []);
 
-  const handleDeviceChange = useCallback(
-    (deviceId: string) => {
-      setSelectedDevice(deviceId);
-      fetch(`${API_BASE}/api/settings/mic_device_id`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value: deviceId }),
-      }).catch((err) => console.error("Failed to save mic setting:", err));
-    },
-    [],
-  );
+  const handleDeviceChange = useCallback((deviceId: string) => {
+    setSelectedDevice(deviceId);
+    fetch(`${API_BASE}/api/settings/mic_device_id`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: deviceId }),
+    }).catch((err) => console.error("Failed to save mic setting:", err));
+  }, []);
 
   const handleThemeChange = useCallback(
     (value: string) => {
@@ -204,9 +201,7 @@ export default function GeneralSettingsPage(): React.JSX.Element {
               onClick={startHotkeyRecording}
               className="border-border hover:bg-secondary flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm"
             >
-              <span className="mono text-xs">
-                {formatAccelerator(hotkey)}
-              </span>
+              <span className="mono text-xs">{formatAccelerator(hotkey)}</span>
               <span className="text-muted-foreground ml-2 text-xs">
                 Click to change
               </span>

@@ -69,6 +69,7 @@ export function useAudioVolume(
       options.smoothingTimeConstant,
       options.minDecibels,
       options.maxDecibels,
+      options,
     ],
   );
 
@@ -168,6 +169,7 @@ export function useMultibandVolume(
       options.analyserOptions?.smoothingTimeConstant,
       options.analyserOptions?.minDecibels,
       options.analyserOptions?.maxDecibels,
+      options,
     ],
   );
 
@@ -318,7 +320,7 @@ export const useBarAnimator = (
 
 // Memoize sequence generators
 const generateConnectingSequenceBar = (columns: number): number[][] => {
-  const seq = [];
+  const seq: number[][] = [];
   for (let x = 0; x < columns; x++) {
     seq.push([x, columns - 1 - x]);
   }

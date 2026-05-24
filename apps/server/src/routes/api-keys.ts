@@ -7,7 +7,9 @@ const apiKeys = new Hono();
 apiKeys.get("/", (c) => {
   const db = getDb();
   const rows = db
-    .prepare("SELECT provider, created_at FROM api_keys ORDER BY created_at DESC")
+    .prepare(
+      "SELECT provider, created_at FROM api_keys ORDER BY created_at DESC",
+    )
     .all() as { provider: string; created_at: string }[];
   return c.json(rows);
 });
@@ -23,7 +25,11 @@ apiKeys.get("/:provider", (c) => {
   if (!row) {
     return c.json({ error: "No API key for this provider" }, 404);
   }
-  return c.json({ provider: row.provider, configured: true, created_at: row.created_at });
+  return c.json({
+    provider: row.provider,
+    configured: true,
+    created_at: row.created_at,
+  });
 });
 
 // Store or update an API key

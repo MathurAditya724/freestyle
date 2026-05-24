@@ -1,16 +1,19 @@
-import { createOpenAI } from "@ai-sdk/openai";
-import { createGroq } from "@ai-sdk/groq";
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createDeepgram } from "@ai-sdk/deepgram";
 import { createElevenLabs } from "@ai-sdk/elevenlabs";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createGroq } from "@ai-sdk/groq";
+import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModelV1 } from "ai";
 import { getDb } from "./db.js";
 
 // Provider factory creators keyed by provider ID
 const PROVIDER_FACTORIES: Record<
   string,
-  (apiKey: string) => { transcription?: (model: string) => unknown; chat?: (model: string) => LanguageModelV1 }
+  (apiKey: string) => {
+    transcription?: (model: string) => unknown;
+    chat?: (model: string) => LanguageModelV1;
+  }
 > = {
   openai: (apiKey) => {
     const p = createOpenAI({ apiKey });
@@ -67,12 +70,16 @@ export function getDefaultModels(): DefaultModels {
     .prepare(
       "SELECT provider, model_id, model_name FROM model_configs WHERE type = 'voice' AND is_default = 1 LIMIT 1",
     )
-    .get() as { provider: string; model_id: string; model_name: string } | undefined;
+    .get() as
+    | { provider: string; model_id: string; model_name: string }
+    | undefined;
   const llm = db
     .prepare(
       "SELECT provider, model_id, model_name FROM model_configs WHERE type = 'llm' AND is_default = 1 LIMIT 1",
     )
-    .get() as { provider: string; model_id: string; model_name: string } | undefined;
+    .get() as
+    | { provider: string; model_id: string; model_name: string }
+    | undefined;
 
   return {
     voice: voice ?? null,
@@ -82,7 +89,8 @@ export function getDefaultModels(): DefaultModels {
 
 export function createTranscriptionModel(providerId: string, modelId: string) {
   const apiKey = getApiKey(providerId);
-  if (!apiKey) throw new Error(`No API key configured for provider: ${providerId}`);
+  if (!apiKey)
+    throw new Error(`No API key configured for provider: ${providerId}`);
 
   const factory = findFactory(providerId);
   if (!factory) throw new Error(`Unsupported provider: ${providerId}`);
@@ -97,9 +105,13 @@ export function createTranscriptionModel(providerId: string, modelId: string) {
   return provider.transcription(shortId);
 }
 
-export function createChatModel(providerId: string, modelId: string): LanguageModelV1 {
+export function createChatModel(
+  providerId: string,
+  modelId: string,
+): LanguageModelV1 {
   const apiKey = getApiKey(providerId);
-  if (!apiKey) throw new Error(`No API key configured for provider: ${providerId}`);
+  if (!apiKey)
+    throw new Error(`No API key configured for provider: ${providerId}`);
 
   const factory = findFactory(providerId);
   if (!factory) throw new Error(`Unsupported provider: ${providerId}`);

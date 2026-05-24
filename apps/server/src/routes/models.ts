@@ -79,8 +79,7 @@ models.get("/available", async (c) => {
           outputMods.includes("audio");
 
         // LLM models: text input + text output
-        const isLLM =
-          inputMods.includes("text") && outputMods.includes("text");
+        const isLLM = inputMods.includes("text") && outputMods.includes("text");
 
         if (isVoice) {
           available.push({

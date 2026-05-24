@@ -12,7 +12,9 @@
         "noImplicitAnyLet": "off",
         "noArrayIndexKey": "off",
         "noDocumentCookie": "off",
-        "noNonNullAssertedOptionalChain": "off"
+        "noNonNullAssertedOptionalChain": "off",
+        "noAssignInExpressions": "warn",
+        "useIterableCallbackReturn": "warn"
       },
       "correctness": {
         "useExhaustiveDependencies": "warn"
@@ -25,7 +27,8 @@
         "noLabelWithoutControl": "warn",
         "useSemanticElements": "warn",
         "useKeyWithClickEvents": "warn",
-        "noStaticElementInteractions": "warn"
+        "noStaticElementInteractions": "warn",
+        "noSvgWithoutTitle": "warn"
       },
       "security": {
         "noDangerouslySetInnerHtml": "off"

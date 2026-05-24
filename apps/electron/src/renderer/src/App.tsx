@@ -1,11 +1,11 @@
-import { Navigate, Route, Routes } from "react-router";
 import AppPage from "@renderer/pages/app";
 import NotFoundPage from "@renderer/pages/not-found";
-import SettingsLayout from "@renderer/pages/settings/layout";
-import GeneralSettingsPage from "@renderer/pages/settings/general";
-import ModelsPage from "@renderer/pages/settings/models";
-import HistoryPage from "@renderer/pages/settings/history";
 import FeedbackPage from "@renderer/pages/settings/feedback";
+import GeneralSettingsPage from "@renderer/pages/settings/general";
+import HistoryPage from "@renderer/pages/settings/history";
+import SettingsLayout from "@renderer/pages/settings/layout";
+import ModelsPage from "@renderer/pages/settings/models";
+import { Navigate, Route, Routes } from "react-router";
 
 export default function App(): React.JSX.Element {
   return (
