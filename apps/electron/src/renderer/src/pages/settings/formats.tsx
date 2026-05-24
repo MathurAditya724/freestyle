@@ -26,8 +26,11 @@ export default function FormatsPage(): React.JSX.Element {
 
   const loadData = useCallback(async () => {
     try {
-      const res = await fetch(`${getApiBase()}/api/formats`);
-      if (res.ok) setRules(await res.json());
+      const res = await fetch(`${getApiBase()}/api/formats?limit=200`);
+      if (res.ok) {
+        const data = await res.json();
+        setRules(data.items ?? data);
+      }
     } catch {
       // ignore
     } finally {

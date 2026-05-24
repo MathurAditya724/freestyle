@@ -27,13 +27,45 @@ interface FormatRow {
   updated_at: string;
 }
 
-// List all format rules
+// List format rules (paginated, searchable)
 formats.get("/", (c) => {
   const db = getDb();
-  const rows = db
-    .prepare("SELECT * FROM format_rules ORDER BY is_default DESC, label ASC")
-    .all() as unknown as FormatRow[];
-  return c.json(rows);
+  const limit = Math.min(Number(c.req.query("limit") || 50), 200);
+  const offset = Number(c.req.query("offset") || 0);
+  const search = c.req.query("search")?.trim() || "";
+
+  let rows: FormatRow[];
+  let countRow: { count: number };
+
+  if (search) {
+    const pattern = `%${search}%`;
+    rows = db
+      .prepare(
+        "SELECT * FROM format_rules WHERE label LIKE ? OR app_pattern LIKE ? OR instructions LIKE ? ORDER BY is_default ASC, label ASC LIMIT ? OFFSET ?",
+      )
+      .all(pattern, pattern, pattern, limit, offset) as unknown as FormatRow[];
+    countRow = db
+      .prepare(
+        "SELECT COUNT(*) as count FROM format_rules WHERE label LIKE ? OR app_pattern LIKE ? OR instructions LIKE ?",
+      )
+      .get(pattern, pattern, pattern) as unknown as { count: number };
+  } else {
+    rows = db
+      .prepare(
+        "SELECT * FROM format_rules ORDER BY is_default ASC, label ASC LIMIT ? OFFSET ?",
+      )
+      .all(limit, offset) as unknown as FormatRow[];
+    countRow = db
+      .prepare("SELECT COUNT(*) as count FROM format_rules")
+      .get() as unknown as { count: number };
+  }
+
+  return c.json({
+    items: rows,
+    total: countRow.count,
+    limit,
+    offset,
+  });
 });
 
 // Match a context string against format rules
