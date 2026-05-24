@@ -66,6 +66,7 @@ export default function AppPage(): React.JSX.Element {
   const startTimeRef = useRef(0);
   const timerRef = useRef<number>(0);
   const wantsMicRef = useRef(false);
+  const appContextRef = useRef<string | null>(null);
 
   const getInputVolume = useCallback(() => volumeRef.current, []);
 
@@ -132,6 +133,10 @@ export default function AppPage(): React.JSX.Element {
     setPartialText("");
     // Audio feedback: ascending tone on start
     playTone(880, 100);
+
+    // Capture frontmost app NOW (before mic dialog or any focus change)
+    appContextRef.current =
+      (await window.api?.getFrontmostApp().catch(() => null)) ?? null;
 
     try {
       // Start the recorder (captures audio for REST transcription)
@@ -246,12 +251,12 @@ export default function AppPage(): React.JSX.Element {
         return;
       }
 
-      // Get frontmost app context for context-aware dictation
-      const appContext = await window.api?.getFrontmostApp().catch(() => null);
+      // Use the frontmost app captured at recording start
       const headers: Record<string, string> = {
         "Content-Type": "audio/wav",
       };
-      if (appContext) headers["x-app-context"] = appContext;
+      if (appContextRef.current)
+        headers["x-app-context"] = appContextRef.current;
 
       const res = await fetch(`${getApiBase()}/api/transcribe`, {
         method: "POST",

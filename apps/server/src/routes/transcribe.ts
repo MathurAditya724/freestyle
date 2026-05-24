@@ -32,9 +32,9 @@ const APP_HINTS: Record<string, string> = {
   WhatsApp: "The user is writing a WhatsApp message. Keep it casual and brief.",
   Telegram:
     "The user is writing a Telegram message. Keep it casual and conversational.",
-  Mail: "The user is composing an email in Apple Mail. Use proper email formatting with clear paragraphs and professional tone.",
+  Mail: "The user is composing an email in Apple Mail. Format as a proper email: start with a greeting if dictated, use clear paragraphs separated by blank lines, maintain a professional yet natural tone, and end with a sign-off if dictated. Keep formatting clean for an email body.",
   Outlook:
-    "The user is composing an email in Outlook. Use proper email formatting with clear paragraphs and professional tone.",
+    "The user is composing an email in Outlook. Format as a proper email: start with a greeting if dictated, use clear paragraphs separated by blank lines, maintain a professional yet natural tone, and end with a sign-off if dictated. Keep formatting clean for an email body.",
   Notion:
     "The user is writing in Notion. Format with clear structure, proper paragraphs, and clean markdown-friendly prose.",
   Pages:
@@ -52,17 +52,17 @@ function getBrowserContextFromUrl(url: string, title: string): string | null {
     const hostname = new URL(url).hostname.replace("www.", "");
 
     // Email
-    if (hostname.includes("mail.google.com"))
-      return "The user is composing an email in Gmail. Use proper email formatting with clear paragraphs and professional tone.";
+    const emailHint =
+      "The user is composing an email. Format as a proper email: start with a greeting if the dictation includes one, use clear paragraphs separated by blank lines, maintain a professional yet natural tone, and end with an appropriate sign-off if dictated. Do NOT add a subject line. Keep the formatting clean for an email body.";
+    if (hostname.includes("mail.google.com")) return `${emailHint} (Gmail)`;
     if (
       hostname.includes("outlook.live.com") ||
       hostname.includes("outlook.office")
     )
-      return "The user is composing an email in Outlook. Use proper email formatting with clear paragraphs and professional tone.";
-    if (hostname.includes("mail.yahoo.com"))
-      return "The user is composing an email in Yahoo Mail. Use proper email formatting.";
+      return `${emailHint} (Outlook)`;
+    if (hostname.includes("mail.yahoo.com")) return `${emailHint} (Yahoo Mail)`;
     if (hostname.includes("proton.me") || hostname.includes("protonmail.com"))
-      return "The user is composing an email in ProtonMail. Use proper email formatting.";
+      return `${emailHint} (ProtonMail)`;
 
     // Calendar
     if (hostname.includes("calendar.google.com"))
