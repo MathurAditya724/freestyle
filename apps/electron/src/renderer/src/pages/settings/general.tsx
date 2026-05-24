@@ -1,7 +1,11 @@
-import { Command, Keyboard, Mic, Monitor, Moon, Sparkles, Sun } from "lucide-react";
+import { Keyboard, Mic, Monitor, Moon, Sparkles, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@renderer/lib/utils";
+import {
+  useHotkeyRecorder,
+  formatAccelerator,
+} from "@renderer/hooks/use-hotkey-recorder";
 
 const API_BASE = "http://localhost:4649";
 
@@ -21,8 +25,25 @@ export default function GeneralSettingsPage(): React.JSX.Element {
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>("");
   const [llmCleanup, setLlmCleanup] = useState(false);
-  const [hotkey, setHotkey] = useState("CommandOrControl+Shift+Space");
-  const [recordingHotkey, setRecordingHotkey] = useState(false);
+  const [hotkey, setHotkey] = useState("Alt+Space");
+
+  const handleHotkeyRecorded = useCallback(
+    (accelerator: string) => {
+      setHotkey(accelerator);
+      // Save to DB
+      fetch(`${API_BASE}/api/settings/hotkey`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: accelerator }),
+      }).catch(() => {});
+      // Notify main process
+      window.api.updateHotkey(accelerator);
+    },
+    [],
+  );
+
+  const { isRecording, startRecording: startHotkeyRecording, cancelRecording: cancelHotkeyRecording } =
+    useHotkeyRecorder(handleHotkeyRecorded);
 
   // Load available audio input devices
   useEffect(() => {
@@ -164,14 +185,14 @@ export default function GeneralSettingsPage(): React.JSX.Element {
         </div>
         <div className="flex items-center gap-3">
           <Keyboard className="text-muted-foreground h-4 w-4 shrink-0" />
-          {recordingHotkey ? (
+          {isRecording ? (
             <div className="border-primary bg-primary/5 flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm">
               <span className="text-muted-foreground animate-pulse">
                 Press your shortcut...
               </span>
               <button
                 type="button"
-                onClick={() => setRecordingHotkey(false)}
+                onClick={cancelHotkeyRecording}
                 className="text-muted-foreground hover:text-foreground text-xs"
               >
                 Cancel
@@ -180,56 +201,11 @@ export default function GeneralSettingsPage(): React.JSX.Element {
           ) : (
             <button
               type="button"
-              onClick={() => {
-                setRecordingHotkey(true);
-
-                const handler = (e: KeyboardEvent) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-
-                  // Build the Electron accelerator string
-                  const parts: string[] = [];
-                  if (e.metaKey || e.ctrlKey) parts.push("CommandOrControl");
-                  if (e.altKey) parts.push("Alt");
-                  if (e.shiftKey) parts.push("Shift");
-
-                  const key = e.key;
-                  if (!["Control", "Shift", "Alt", "Meta"].includes(key)) {
-                    // Map special keys
-                    const keyMap: Record<string, string> = {
-                      " ": "Space",
-                      ArrowUp: "Up",
-                      ArrowDown: "Down",
-                      ArrowLeft: "Left",
-                      ArrowRight: "Right",
-                    };
-                    parts.push(keyMap[key] || key.length === 1 ? key.toUpperCase() : key);
-
-                    const newHotkey = parts.join("+");
-                    setHotkey(newHotkey);
-                    setRecordingHotkey(false);
-
-                    // Save to DB and notify main process
-                    fetch(`${API_BASE}/api/settings/hotkey`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ value: newHotkey }),
-                    }).catch(() => {});
-                    window.api.updateHotkey(newHotkey);
-
-                    window.removeEventListener("keydown", handler, true);
-                  }
-                };
-
-                window.addEventListener("keydown", handler, true);
-              }}
+              onClick={startHotkeyRecording}
               className="border-border hover:bg-secondary flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm"
             >
-              <Command className="h-3.5 w-3.5" />
               <span className="mono text-xs">
-                {hotkey
-                  .replace("CommandOrControl", "Cmd")
-                  .replace(/\+/g, " + ")}
+                {formatAccelerator(hotkey)}
               </span>
               <span className="text-muted-foreground ml-2 text-xs">
                 Click to change

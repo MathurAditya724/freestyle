@@ -291,7 +291,22 @@ app.whenReady().then(() => {
   });
 });
 
-const DEFAULT_HOTKEY = "CommandOrControl+Shift+Space";
+const DEFAULT_HOTKEY = "Alt+Space";
+
+// Validate that an accelerator string is safe for Electron
+function isValidAccelerator(accel: string): boolean {
+  if (!accel || typeof accel !== "string") return false;
+  // Must be ASCII only
+  if (!/^[\x20-\x7E]+$/.test(accel)) return false;
+  // Must contain at least a "+" (modifier+key) or be a bare F-key
+  if (!accel.includes("+") && !/^F\d{1,2}$/.test(accel)) return false;
+  // Must not end with "+"
+  if (accel.endsWith("+")) return false;
+  // Parts must not be empty
+  const parts = accel.split("+");
+  if (parts.some((p) => !p.trim())) return false;
+  return true;
+}
 
 function registerHotkey(hotkey?: string): void {
   globalShortcut.unregisterAll();
@@ -301,21 +316,22 @@ function registerHotkey(hotkey?: string): void {
     try {
       const dbPath = process.env["FREESTYLE_DB_PATH"];
       if (dbPath) {
-        // Use a raw import to avoid circular deps -- the DB is already initialized
         const { DatabaseSync } = require("node:sqlite");
         const db = new DatabaseSync(dbPath);
         const row = db
           .prepare("SELECT value FROM settings WHERE key = 'hotkey'")
           .get() as { value: string } | undefined;
         db.close();
-        if (row?.value) hotkey = row.value;
+        if (row?.value && isValidAccelerator(row.value)) {
+          hotkey = row.value;
+        }
       }
     } catch {
       // Ignore errors, use default
     }
   }
 
-  const key = hotkey || DEFAULT_HOTKEY;
+  const key = hotkey && isValidAccelerator(hotkey) ? hotkey : DEFAULT_HOTKEY;
 
   try {
     const success = globalShortcut.register(key, () => {
@@ -323,7 +339,6 @@ function registerHotkey(hotkey?: string): void {
     });
     if (!success) {
       console.error(`Failed to register hotkey: ${key}`);
-      // Fall back to default if custom key fails
       if (key !== DEFAULT_HOTKEY) {
         globalShortcut.register(DEFAULT_HOTKEY, () => {
           showAppWindow();
@@ -332,6 +347,16 @@ function registerHotkey(hotkey?: string): void {
     }
   } catch (err) {
     console.error(`Error registering hotkey: ${key}`, err);
+    // Always try the default as last resort
+    if (key !== DEFAULT_HOTKEY) {
+      try {
+        globalShortcut.register(DEFAULT_HOTKEY, () => {
+          showAppWindow();
+        });
+      } catch {
+        // Give up
+      }
+    }
   }
 }
 
