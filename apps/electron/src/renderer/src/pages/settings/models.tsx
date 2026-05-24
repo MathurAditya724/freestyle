@@ -634,7 +634,7 @@ export default function ModelsPage(): React.JSX.Element {
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="border-border divide-border divide-y rounded-lg border">
             {apiKeys.map((entry) => {
               const providerModels = configured.filter(
                 (m) => m.provider === entry.provider,
@@ -642,7 +642,7 @@ export default function ModelsPage(): React.JSX.Element {
               return (
                 <div
                   key={entry.provider}
-                  className="border-border group flex items-center gap-3 rounded-lg border px-4 py-3"
+                  className="group flex items-center gap-3 px-4 py-3"
                 >
                   <div className="bg-primary/10 text-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
                     <Key size={14} />
