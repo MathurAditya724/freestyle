@@ -2,12 +2,11 @@ import {
   formatAccelerator,
   useHotkeyRecorder,
 } from "@renderer/hooks/use-hotkey-recorder";
+import { getApiBase } from "@renderer/lib/api";
 import { cn } from "@renderer/lib/utils";
 import { Keyboard, Mic, Monitor, Moon, Sparkles, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
-
-const API_BASE = "http://localhost:4649";
 
 const themeOptions = [
   { value: "light", label: "Light", icon: Sun },
@@ -30,11 +29,11 @@ export default function GeneralSettingsPage(): React.JSX.Element {
   const handleHotkeyRecorded = useCallback((accelerator: string) => {
     setHotkey(accelerator);
     // Save to DB
-    fetch(`${API_BASE}/api/settings/hotkey`, {
+    fetch(`${getApiBase()}/api/settings/hotkey`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value: accelerator }),
-    }).catch(() => {});
+    }).catch((err) => console.error("Failed to save hotkey:", err));
     // Notify main process
     window.api.updateHotkey(accelerator);
   }, []);
@@ -70,19 +69,19 @@ export default function GeneralSettingsPage(): React.JSX.Element {
 
   // Load saved settings from server
   useEffect(() => {
-    fetch(`${API_BASE}/api/settings/mic_device_id`)
+    fetch(`${getApiBase()}/api/settings/mic_device_id`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.value) setSelectedDevice(data.value);
       })
       .catch(() => {});
-    fetch(`${API_BASE}/api/settings/llm_cleanup`)
+    fetch(`${getApiBase()}/api/settings/llm_cleanup`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.value) setLlmCleanup(data.value === "true");
       })
       .catch(() => {});
-    fetch(`${API_BASE}/api/settings/hotkey`)
+    fetch(`${getApiBase()}/api/settings/hotkey`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.value) setHotkey(data.value);
@@ -92,7 +91,7 @@ export default function GeneralSettingsPage(): React.JSX.Element {
 
   const handleDeviceChange = useCallback((deviceId: string) => {
     setSelectedDevice(deviceId);
-    fetch(`${API_BASE}/api/settings/mic_device_id`, {
+    fetch(`${getApiBase()}/api/settings/mic_device_id`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value: deviceId }),
@@ -102,11 +101,11 @@ export default function GeneralSettingsPage(): React.JSX.Element {
   const handleThemeChange = useCallback(
     (value: string) => {
       setTheme(value);
-      fetch(`${API_BASE}/api/settings/theme`, {
+      fetch(`${getApiBase()}/api/settings/theme`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ value }),
-      }).catch(() => {});
+      }).catch((err) => console.error("Failed to save theme:", err));
     },
     [setTheme],
   );
@@ -223,11 +222,13 @@ export default function GeneralSettingsPage(): React.JSX.Element {
           onClick={() => {
             const next = !llmCleanup;
             setLlmCleanup(next);
-            fetch(`${API_BASE}/api/settings/llm_cleanup`, {
+            fetch(`${getApiBase()}/api/settings/llm_cleanup`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ value: String(next) }),
-            }).catch(() => {});
+            }).catch((err) =>
+              console.error("Failed to save LLM cleanup:", err),
+            );
           }}
           className={cn(
             "flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors",

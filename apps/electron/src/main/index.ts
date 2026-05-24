@@ -16,6 +16,7 @@ import {
   shell,
   Tray,
 } from "electron";
+import { autoUpdater } from "electron-updater";
 import type {
   IGlobalKeyDownMap,
   IGlobalKeyEvent,
@@ -26,12 +27,13 @@ import icon from "../../resources/icon.png?asset";
 import trayIconPath from "../../resources/tray/logoTemplate.png?asset";
 import { pasteIntoFocusedApp } from "./paste";
 
-const SERVER_PORT = 4649;
+const DEFAULT_PORT = 4649;
 const APP_WIDTH = 440;
 const APP_HEIGHT = 120;
 const APP_BOTTOM_MARGIN = 0;
 
 let httpServer: Server | null = null;
+let serverPort = DEFAULT_PORT;
 let mainWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -144,7 +146,6 @@ function createSettingsWindow(): void {
     ...(process.platform === "linux" ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
-      sandbox: false,
     },
   });
 
@@ -234,7 +235,7 @@ function createTray(): void {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   // Set app user model id for windows
-  electronApp.setAppUserModelId("com.electron");
+  electronApp.setAppUserModelId("com.freestyle.app");
 
   // Register the custom app:// protocol for production SPA support
   registerAppProtocol();
@@ -259,8 +260,8 @@ app.whenReady().then(() => {
     hidePill();
   });
 
-  // IPC: notify renderer of recording state changes
-  ipcMain.on("ping", () => console.log("pong"));
+  // IPC: expose the server port to the renderer
+  ipcMain.handle("server:port", () => serverPort);
 
   // Set database path for the server before any API calls
   process.env.FREESTYLE_DB_PATH = join(app.getPath("userData"), "freestyle.db");
@@ -270,10 +271,11 @@ app.whenReady().then(() => {
   httpServer = serve(
     {
       fetch: server.fetch,
-      port: SERVER_PORT,
+      port: DEFAULT_PORT,
       websocket: { server: wss },
     },
     (info) => {
+      serverPort = info.port;
       console.log(`Server running on http://localhost:${info.port}`);
     },
   );
@@ -281,6 +283,12 @@ app.whenReady().then(() => {
   createTray();
 
   createAppWindow();
+
+  // Check for updates (silently, don't auto-install)
+  if (!is.dev) {
+    autoUpdater.autoDownload = false;
+    autoUpdater.checkForUpdatesAndNotify();
+  }
 
   // Register hold-to-record hotkey via node-global-key-listener
   registerHotkey();

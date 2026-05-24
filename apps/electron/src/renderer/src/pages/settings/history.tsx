@@ -1,7 +1,6 @@
+import { getApiBase } from "@renderer/lib/api";
 import { Clock, Trash2, TrendingUp } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-
-const API_BASE = "http://localhost:4649";
 
 interface HistoryEntry {
   id: number;
@@ -61,8 +60,8 @@ export default function HistoryPage(): React.JSX.Element {
   const loadData = useCallback(async () => {
     try {
       const [histRes, statsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/history?limit=100`),
-        fetch(`${API_BASE}/api/history/stats`),
+        fetch(`${getApiBase()}/api/history?limit=100`),
+        fetch(`${getApiBase()}/api/history/stats`),
       ]);
       if (histRes.ok) {
         const data = await histRes.json();
@@ -82,7 +81,7 @@ export default function HistoryPage(): React.JSX.Element {
 
   const deleteEntry = useCallback(
     async (id: number) => {
-      await fetch(`${API_BASE}/api/history/${id}`, { method: "DELETE" });
+      await fetch(`${getApiBase()}/api/history/${id}`, { method: "DELETE" });
       loadData();
     },
     [loadData],
@@ -90,7 +89,7 @@ export default function HistoryPage(): React.JSX.Element {
 
   const clearAll = useCallback(async () => {
     if (!confirm("Clear all transcription history?")) return;
-    await fetch(`${API_BASE}/api/history`, { method: "DELETE" });
+    await fetch(`${getApiBase()}/api/history`, { method: "DELETE" });
     loadData();
   }, [loadData]);
 

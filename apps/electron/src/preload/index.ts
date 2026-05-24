@@ -8,6 +8,7 @@ const api = {
   updateHotkey: (hotkey: string): void =>
     ipcRenderer.send("hotkey:update", hotkey),
   hidePill: (): void => ipcRenderer.send("pill:hide"),
+  getServerPort: (): Promise<number> => ipcRenderer.invoke("server:port"),
   onHotkeyDown: (callback: () => void): (() => void) => {
     const handler = (): void => callback();
     ipcRenderer.on("hotkey:down", handler);

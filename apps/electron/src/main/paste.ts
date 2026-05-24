@@ -7,28 +7,50 @@ function execAsync(cmd: string): Promise<void> {
   });
 }
 
+async function pasteMac(): Promise<void> {
+  await execAsync(
+    `osascript -e 'tell application "System Events" to keystroke "v" using {command down}'`,
+  );
+}
+
+async function pasteWindows(): Promise<void> {
+  await execAsync(
+    `powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"`,
+  );
+}
+
+async function pasteLinux(): Promise<void> {
+  // Try xdotool first (X11), fall back to wtype (Wayland)
+  try {
+    await execAsync("xdotool key ctrl+v");
+  } catch {
+    await execAsync("wtype -M ctrl -P v -p v -m ctrl");
+  }
+}
+
 export async function pasteIntoFocusedApp(text: string): Promise<void> {
   if (!text) return;
 
-  // Save current clipboard
   const prior = clipboard.readText();
-
-  // Write transcribed text to clipboard
   clipboard.writeText(text);
 
   try {
-    // Wait for clipboard to settle
     await new Promise((r) => setTimeout(r, 50));
 
-    // Simulate Cmd+V via AppleScript
-    await execAsync(
-      `osascript -e 'tell application "System Events" to keystroke "v" using {command down}'`,
-    );
+    switch (process.platform) {
+      case "darwin":
+        await pasteMac();
+        break;
+      case "win32":
+        await pasteWindows();
+        break;
+      default:
+        await pasteLinux();
+        break;
+    }
 
-    // Wait for paste to complete
     await new Promise((r) => setTimeout(r, 200));
   } finally {
-    // Restore original clipboard
     clipboard.writeText(prior);
   }
 }
