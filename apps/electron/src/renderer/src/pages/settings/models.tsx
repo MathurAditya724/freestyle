@@ -8,6 +8,7 @@ import {
   EyeOff,
   Key,
   Mic,
+  Pencil,
   Search,
   Sparkles,
   Trash2,
@@ -95,10 +96,14 @@ export default function ModelsPage(): React.JSX.Element {
     "voice",
   );
 
-  // Provider key editing
+  // Provider key editing (uses the same dialog pattern as new key)
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
   const [editKeyValue, setEditKeyValue] = useState("");
   const [showEditKey, setShowEditKey] = useState(false);
+
+  // Delete confirmation
+  const [deleteProvider, setDeleteProvider] = useState<string | null>(null);
+  const [deleteBlockedBy, setDeleteBlockedBy] = useState<string[]>([]);
 
   // -------------------------------------------------------------------------
   // Data loading
@@ -264,37 +269,73 @@ export default function ModelsPage(): React.JSX.Element {
     loadData,
   ]);
 
-  const saveProviderKey = useCallback(
-    async (provider: string) => {
-      if (!editKeyValue.trim()) return;
-      await fetch(`${getApiBase()}/api/keys`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, key: editKeyValue.trim() }),
-      });
-      setEditingProvider(null);
-      setEditKeyValue("");
-      setShowEditKey(false);
-      loadData();
+  const saveProviderKey = useCallback(async () => {
+    if (!editKeyValue.trim() || !editingProvider) return;
+    await fetch(`${getApiBase()}/api/keys`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: editingProvider,
+        key: editKeyValue.trim(),
+      }),
+    });
+    setEditingProvider(null);
+    setEditKeyValue("");
+    setShowEditKey(false);
+    loadData();
+  }, [editKeyValue, editingProvider, loadData]);
+
+  const startEditProvider = useCallback((provider: string) => {
+    setEditingProvider(provider);
+    setEditKeyValue("");
+    setShowEditKey(false);
+  }, []);
+
+  const closeEditProvider = useCallback(() => {
+    setEditingProvider(null);
+    setEditKeyValue("");
+    setShowEditKey(false);
+  }, []);
+
+  const tryDeleteProvider = useCallback(
+    (provider: string) => {
+      // Check if any default models use this provider
+      const activeModels: string[] = [];
+      if (defaultVoice?.provider === provider)
+        activeModels.push(`Voice: ${defaultVoice.model_name}`);
+      if (defaultLlm?.provider === provider)
+        activeModels.push(`LLM: ${defaultLlm.model_name}`);
+
+      if (activeModels.length > 0) {
+        setDeleteProvider(provider);
+        setDeleteBlockedBy(activeModels);
+      } else {
+        setDeleteProvider(provider);
+        setDeleteBlockedBy([]);
+      }
     },
-    [editKeyValue, loadData],
+    [defaultVoice, defaultLlm],
   );
 
-  const removeProviderKey = useCallback(
-    async (provider: string) => {
-      await fetch(`${getApiBase()}/api/keys/${provider}`, { method: "DELETE" });
-      const providerModels = configured.filter((m) => m.provider === provider);
-      await Promise.all(
-        providerModels.map((m) =>
-          fetch(`${getApiBase()}/api/models/configured/${m.id}`, {
-            method: "DELETE",
-          }),
-        ),
-      );
-      loadData();
-    },
-    [configured, loadData],
-  );
+  const confirmDeleteProvider = useCallback(async () => {
+    if (!deleteProvider) return;
+    await fetch(`${getApiBase()}/api/keys/${deleteProvider}`, {
+      method: "DELETE",
+    });
+    const providerModels = configured.filter(
+      (m) => m.provider === deleteProvider,
+    );
+    await Promise.all(
+      providerModels.map((m) =>
+        fetch(`${getApiBase()}/api/models/configured/${m.id}`, {
+          method: "DELETE",
+        }),
+      ),
+    );
+    setDeleteProvider(null);
+    setDeleteBlockedBy([]);
+    loadData();
+  }, [deleteProvider, configured, loadData]);
 
   // -------------------------------------------------------------------------
   // Shared dropdown renderer
@@ -593,82 +634,57 @@ export default function ModelsPage(): React.JSX.Element {
             </p>
           </div>
         ) : (
-          <div className="border-border divide-border divide-y rounded-lg border">
-            {apiKeys.map((entry) => (
-              <div
-                key={entry.provider}
-                className="flex items-center gap-3 px-4 py-3"
-              >
-                <Key className="text-muted-foreground h-4 w-4 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium">
-                    {displayName(entry.provider)}
-                  </div>
-                  {editingProvider === entry.provider ? (
-                    <div className="mt-1 flex items-center gap-1.5">
-                      <div className="relative flex-1">
-                        <input
-                          type={showEditKey ? "text" : "password"}
-                          value={editKeyValue}
-                          onChange={(e) => setEditKeyValue(e.target.value)}
-                          placeholder="sk-..."
-                          className="border-border bg-background w-full rounded border px-2 py-1 pr-7 font-mono text-xs"
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter")
-                              saveProviderKey(entry.provider);
-                            if (e.key === "Escape") {
-                              setEditingProvider(null);
-                              setEditKeyValue("");
-                            }
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowEditKey(!showEditKey)}
-                          className="text-muted-foreground hover:text-foreground absolute right-1.5 top-1/2 -translate-y-1/2"
-                        >
-                          {showEditKey ? (
-                            <EyeOff size={10} />
-                          ) : (
-                            <Eye size={10} />
-                          )}
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => saveProviderKey(entry.provider)}
-                        className="text-primary"
-                      >
-                        <Check size={14} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="text-muted-foreground text-xs">
-                      API key configured &middot;{" "}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingProvider(entry.provider);
-                          setEditKeyValue("");
-                          setShowEditKey(false);
-                        }}
-                        className="text-primary/80 hover:text-primary underline"
-                      >
-                        update
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeProviderKey(entry.provider)}
-                  className="text-muted-foreground hover:text-destructive rounded p-1.5"
-                  title="Remove provider and its models"
+          <div className="space-y-2">
+            {apiKeys.map((entry) => {
+              const providerModels = configured.filter(
+                (m) => m.provider === entry.provider,
+              );
+              return (
+                <div
+                  key={entry.provider}
+                  className="border-border group flex items-center gap-3 rounded-lg border px-4 py-3"
                 >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
+                  <div className="bg-primary/10 text-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+                    <Key size={14} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium">
+                      {displayName(entry.provider)}
+                    </div>
+                    <div className="text-muted-foreground text-xs">
+                      API key configured
+                      {providerModels.length > 0 && (
+                        <span>
+                          {" "}
+                          &middot; {providerModels.length}{" "}
+                          {providerModels.length === 1 ? "model" : "models"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button
+                      type="button"
+                      onClick={() => startEditProvider(entry.provider)}
+                      className="text-muted-foreground hover:text-foreground flex items-center gap-1 rounded px-2 py-1 text-xs"
+                      title="Edit API key"
+                    >
+                      <Pencil size={12} />
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => tryDeleteProvider(entry.provider)}
+                      className="text-muted-foreground hover:text-destructive flex items-center gap-1 rounded px-2 py-1 text-xs"
+                      title="Delete provider"
+                    >
+                      <Trash2 size={12} />
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -746,6 +762,158 @@ export default function ModelsPage(): React.JSX.Element {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* Edit Provider Key Dialog                                          */}
+      {/* ================================================================= */}
+      {editingProvider && (
+        <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
+          <div className="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Update API Key</h3>
+                <p className="text-muted-foreground mt-0.5 text-sm">
+                  Enter a new API key for{" "}
+                  <span className="text-foreground font-medium">
+                    {displayName(editingProvider)}
+                  </span>
+                  .
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditProvider}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="relative">
+                <Key className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+                <input
+                  type={showEditKey ? "text" : "password"}
+                  value={editKeyValue}
+                  onChange={(e) => setEditKeyValue(e.target.value)}
+                  placeholder="sk-..."
+                  className="border-border bg-background w-full rounded-lg border py-2.5 pl-10 pr-10 font-mono text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && editKeyValue.trim())
+                      saveProviderKey();
+                    if (e.key === "Escape") closeEditProvider();
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEditKey(!showEditKey)}
+                  className="text-muted-foreground hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
+                >
+                  {showEditKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeEditProvider}
+                  className="border-border hover:bg-secondary rounded-lg border px-4 py-2 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveProviderKey}
+                  disabled={!editKeyValue.trim()}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* Delete Provider Confirmation Dialog                               */}
+      {/* ================================================================= */}
+      {deleteProvider && (
+        <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
+          <div className="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-xl">
+            {deleteBlockedBy.length > 0 ? (
+              <>
+                <div className="mb-4 flex items-start gap-3">
+                  <AlertTriangle className="text-destructive mt-0.5 h-5 w-5 shrink-0" />
+                  <div>
+                    <h3 className="text-lg font-semibold">Cannot Delete</h3>
+                    <p className="text-muted-foreground mt-1 text-sm">
+                      <span className="text-foreground font-medium">
+                        {displayName(deleteProvider)}
+                      </span>{" "}
+                      is currently used by active models. Please change these
+                      models before deleting:
+                    </p>
+                    <ul className="mt-2 space-y-1">
+                      {deleteBlockedBy.map((model) => (
+                        <li
+                          key={model}
+                          className="text-destructive text-sm font-medium"
+                        >
+                          {model}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteProvider(null);
+                      setDeleteBlockedBy([]);
+                    }}
+                    className="border-border hover:bg-secondary rounded-lg border px-4 py-2 text-sm"
+                  >
+                    OK
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold">Delete Provider</h3>
+                  <p className="text-muted-foreground mt-1 text-sm">
+                    Are you sure you want to delete the{" "}
+                    <span className="text-foreground font-medium">
+                      {displayName(deleteProvider)}
+                    </span>{" "}
+                    API key? This will also remove all configured models for
+                    this provider.
+                  </p>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteProvider(null);
+                      setDeleteBlockedBy([]);
+                    }}
+                    className="border-border hover:bg-secondary rounded-lg border px-4 py-2 text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmDeleteProvider}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-lg px-4 py-2 text-sm font-medium"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
