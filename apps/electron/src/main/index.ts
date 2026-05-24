@@ -83,10 +83,37 @@ function getRendererURL(path = "/"): string {
 function getAppWindowPosition(): { x: number; y: number } {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
-  return {
-    x: Math.round((width - APP_WIDTH) / 2),
-    y: height - APP_HEIGHT - APP_BOTTOM_MARGIN,
-  };
+
+  // Read pill position preference
+  let position = "bottom-center";
+  try {
+    const settingsPath = join(app.getPath("userData"), "settings.json");
+    const data = JSON.parse(
+      require("node:fs").readFileSync(settingsPath, "utf-8"),
+    );
+    if (data.pillPosition) position = data.pillPosition;
+  } catch {
+    // default
+  }
+
+  const margin = 20;
+  switch (position) {
+    case "top-center":
+      return { x: Math.round((width - APP_WIDTH) / 2), y: margin };
+    case "top-right":
+      return { x: width - APP_WIDTH - margin, y: margin };
+    case "bottom-right":
+      return {
+        x: width - APP_WIDTH - margin,
+        y: height - APP_HEIGHT - margin,
+      };
+    case "bottom-center":
+    default:
+      return {
+        x: Math.round((width - APP_WIDTH) / 2),
+        y: height - APP_HEIGHT - APP_BOTTOM_MARGIN,
+      };
+  }
 }
 
 function createAppWindow(): void {
@@ -165,7 +192,21 @@ function createSettingsWindow(): void {
     return { action: "deny" };
   });
 
-  settingsWindow.loadURL(getRendererURL("/settings"));
+  // Check if onboarding is complete to decide initial route
+  let onboardingDone = false;
+  try {
+    const settingsPath = join(app.getPath("userData"), "settings.json");
+    const data = JSON.parse(
+      require("node:fs").readFileSync(settingsPath, "utf-8"),
+    );
+    onboardingDone = data.onboardingComplete === true;
+  } catch {
+    // file doesn't exist = not done
+  }
+
+  settingsWindow.loadURL(
+    getRendererURL(onboardingDone ? "/settings" : "/onboarding"),
+  );
 }
 
 function showPill(): void {
@@ -528,11 +569,94 @@ app.whenReady().then(() => {
 
   createAppWindow();
 
-  // Check for updates (silently, don't auto-install)
+  // -- Auto-updater with IPC notifications --
   if (!is.dev) {
     autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on("update-available", (info) => {
+      settingsWindow?.webContents.send("updater:available", {
+        version: info.version,
+      });
+    });
+
+    autoUpdater.on("update-downloaded", (info) => {
+      settingsWindow?.webContents.send("updater:downloaded", {
+        version: info.version,
+      });
+    });
+
     autoUpdater.checkForUpdatesAndNotify();
   }
+
+  ipcMain.on("updater:download", () => {
+    autoUpdater.downloadUpdate();
+  });
+
+  ipcMain.on("updater:install", () => {
+    autoUpdater.quitAndInstall();
+  });
+
+  ipcMain.handle("updater:check", async () => {
+    if (is.dev) return null;
+    try {
+      const result = await autoUpdater.checkForUpdates();
+      return result?.updateInfo?.version ?? null;
+    } catch {
+      return null;
+    }
+  });
+
+  // -- Context-aware dictation: get frontmost app name --
+  ipcMain.handle("system:frontmost-app", async () => {
+    if (process.platform === "darwin") {
+      try {
+        const { execSync } = require("node:child_process");
+        const name = execSync(
+          `osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'`,
+          { encoding: "utf-8" },
+        ).trim();
+        return name;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  // -- Pill position setting --
+  ipcMain.handle("settings:pill-position", () => {
+    try {
+      const settingsPath = join(app.getPath("userData"), "settings.json");
+      const data = JSON.parse(
+        require("node:fs").readFileSync(settingsPath, "utf-8"),
+      );
+      return data.pillPosition ?? "bottom-center";
+    } catch {
+      return "bottom-center";
+    }
+  });
+
+  ipcMain.on("settings:set-pill-position", (_event, position: string) => {
+    try {
+      const settingsPath = join(app.getPath("userData"), "settings.json");
+      let data: Record<string, unknown> = {};
+      try {
+        data = JSON.parse(
+          require("node:fs").readFileSync(settingsPath, "utf-8"),
+        );
+      } catch {
+        // file doesn't exist
+      }
+      data.pillPosition = position;
+      require("node:fs").writeFileSync(
+        settingsPath,
+        JSON.stringify(data, null, 2),
+      );
+    } catch {
+      // ignore
+    }
+  });
 
   // Register hold-to-record hotkey via node-global-key-listener
   registerHotkey();

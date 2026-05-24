@@ -4,18 +4,21 @@ import {
   Book,
   ChevronLeft,
   ChevronRight,
+  Download,
   Pencil,
   Plus,
   Search,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface DictionaryEntry {
   id: number;
   key: string;
   value: string;
+  usage_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -122,6 +125,49 @@ export default function DictionaryPage(): React.JSX.Element {
     [loadData],
   );
 
+  const importRef = useRef<HTMLInputElement>(null);
+
+  const exportJson = useCallback(async () => {
+    try {
+      const res = await fetch(`${getApiBase()}/api/dictionary/export/json`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "dictionary.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleImport = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        await fetch(`${getApiBase()}/api/dictionary/import`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        loadData();
+      } catch {
+        // ignore
+      }
+      // Reset input so same file can be re-imported
+      if (importRef.current) importRef.current.value = "";
+    },
+    [loadData],
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -140,7 +186,7 @@ export default function DictionaryPage(): React.JSX.Element {
         </p>
       </div>
 
-      {/* Search + Add */}
+      {/* Search + Actions */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Search className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
@@ -155,6 +201,29 @@ export default function DictionaryPage(): React.JSX.Element {
             className="border-border bg-card text-foreground w-full rounded-lg border py-2 pl-9 pr-3 text-sm"
           />
         </div>
+        <button
+          type="button"
+          onClick={exportJson}
+          className="border-border hover:bg-secondary rounded-lg border p-2"
+          title="Export as JSON"
+        >
+          <Download size={16} className="text-muted-foreground" />
+        </button>
+        <button
+          type="button"
+          onClick={() => importRef.current?.click()}
+          className="border-border hover:bg-secondary rounded-lg border p-2"
+          title="Import from JSON"
+        >
+          <Upload size={16} className="text-muted-foreground" />
+        </button>
+        <input
+          ref={importRef}
+          type="file"
+          accept=".json"
+          className="hidden"
+          onChange={handleImport}
+        />
         <button
           type="button"
           onClick={() => {
@@ -278,25 +347,33 @@ export default function DictionaryPage(): React.JSX.Element {
                   </p>
                 </div>
               </div>
-              <div className="mt-2 flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                <button
-                  type="button"
-                  onClick={() => startEdit(entry)}
-                  className="text-muted-foreground hover:text-foreground flex items-center gap-1 rounded px-2 py-1 text-xs"
-                  title="Edit"
-                >
-                  <Pencil size={12} />
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => deleteEntry(entry.id)}
-                  className="text-muted-foreground hover:text-destructive flex items-center gap-1 rounded px-2 py-1 text-xs"
-                  title="Delete"
-                >
-                  <Trash2 size={12} />
-                  Delete
-                </button>
+              <div className="mt-2 flex items-center gap-2">
+                {entry.usage_count > 0 && (
+                  <span className="text-muted-foreground text-[10px]">
+                    Used {entry.usage_count}{" "}
+                    {entry.usage_count === 1 ? "time" : "times"}
+                  </span>
+                )}
+                <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <button
+                    type="button"
+                    onClick={() => startEdit(entry)}
+                    className="text-muted-foreground hover:text-foreground flex items-center gap-1 rounded px-2 py-1 text-xs"
+                    title="Edit"
+                  >
+                    <Pencil size={12} />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteEntry(entry.id)}
+                    className="text-muted-foreground hover:text-destructive flex items-center gap-1 rounded px-2 py-1 text-xs"
+                    title="Delete"
+                  >
+                    <Trash2 size={12} />
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           ))}

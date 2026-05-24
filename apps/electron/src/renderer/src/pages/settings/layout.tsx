@@ -14,17 +14,44 @@ import {
   SidebarProvider,
 } from "@renderer/components/ui/sidebar";
 import { Book, Clock, Cpu, MessageSquare, Sliders } from "lucide-react";
-import { NavLink, Outlet } from "react-router";
+import { useEffect } from "react";
+import { NavLink, Outlet, useNavigate } from "react-router";
 
 const navItems = [
-  { to: "/settings/general", label: "General", icon: Sliders },
-  { to: "/settings/models", label: "Models", icon: Cpu },
-  { to: "/settings/dictionary", label: "Dictionary", icon: Book },
-  { to: "/settings/history", label: "History", icon: Clock },
-  { to: "/settings/feedback", label: "Feedback", icon: MessageSquare },
+  { to: "/settings/general", label: "General", icon: Sliders, shortcut: "1" },
+  { to: "/settings/models", label: "Models", icon: Cpu, shortcut: "2" },
+  {
+    to: "/settings/dictionary",
+    label: "Dictionary",
+    icon: Book,
+    shortcut: "3",
+  },
+  { to: "/settings/history", label: "History", icon: Clock, shortcut: "4" },
+  {
+    to: "/settings/feedback",
+    label: "Feedback",
+    icon: MessageSquare,
+    shortcut: "5",
+  },
 ];
 
 export default function SettingsLayout(): React.JSX.Element {
+  const navigate = useNavigate();
+
+  // Keyboard shortcuts: Cmd/Ctrl+1-5 for nav
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const idx = Number(e.key) - 1;
+      if (idx >= 0 && idx < navItems.length) {
+        e.preventDefault();
+        navigate(navItems[idx].to);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [navigate]);
+
   return (
     <SidebarProvider className="bg-background h-screen">
       <Sidebar collapsible="none" className="border-sidebar-border border-r">
@@ -37,12 +64,12 @@ export default function SettingsLayout(): React.JSX.Element {
           <img
             src={markLight}
             alt="Freestyle"
-            className="block dark:hidden h-7 w-7"
+            className="block h-7 w-7 dark:hidden"
           />
           <img
             src={markDark}
             alt="Freestyle"
-            className="hidden dark:block h-7 w-7"
+            className="hidden h-7 w-7 dark:block"
           />
           <span className="serif text-lg font-semibold tracking-tight">
             Freestyle
@@ -64,6 +91,10 @@ export default function SettingsLayout(): React.JSX.Element {
                             />
                             <span className={isActive ? "font-medium" : ""}>
                               {item.label}
+                            </span>
+                            <span className="text-muted-foreground/50 ml-auto font-mono text-[10px]">
+                              {"\u2318"}
+                              {item.shortcut}
                             </span>
                           </>
                         )}

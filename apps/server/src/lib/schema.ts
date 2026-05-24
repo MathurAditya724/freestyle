@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 export function initSchema(db: DatabaseSync): void {
   db.exec(`
@@ -76,6 +76,17 @@ export function initSchema(db: DatabaseSync): void {
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `);
+  }
+
+  if (currentVersion < 4) {
+    // Add usage_count to dictionary
+    try {
+      db.exec(
+        "ALTER TABLE dictionary ADD COLUMN usage_count INTEGER NOT NULL DEFAULT 0",
+      );
+    } catch {
+      // Column may already exist
+    }
   }
 
   // Upsert schema version

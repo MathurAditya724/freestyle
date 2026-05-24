@@ -11,6 +11,29 @@ const FALL = 0.22;
 
 type PillState = "idle" | "recording" | "transcribing" | "pasted" | "error";
 
+// Audio feedback: short sine tones for recording start/stop
+function playTone(freq: number, durationMs: number, volume = 0.15): void {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    gain.gain.value = volume;
+    gain.gain.exponentialRampToValueAtTime(
+      0.001,
+      ctx.currentTime + durationMs / 1000,
+    );
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + durationMs / 1000);
+    setTimeout(() => ctx.close(), durationMs + 100);
+  } catch {
+    // ignore audio errors
+  }
+}
+
 function smoothBars(prev: number[], next: number[]): number[] {
   return prev.map((p, i) => {
     const n = next[i] ?? 0;
@@ -107,6 +130,8 @@ export default function AppPage(): React.JSX.Element {
     setState("recording");
     setMessage("");
     setPartialText("");
+    // Audio feedback: ascending tone on start
+    playTone(880, 100);
 
     try {
       // Start the recorder (captures audio for REST transcription)
@@ -192,6 +217,8 @@ export default function AppPage(): React.JSX.Element {
   const commitRecording = useCallback(async () => {
     wantsMicRef.current = false;
     stopVisualization();
+    // Audio feedback: descending tone on stop
+    playTone(660, 100);
 
     const streamer = streamerRef.current;
 
@@ -219,10 +246,19 @@ export default function AppPage(): React.JSX.Element {
         return;
       }
 
+      // Get frontmost app for context-aware dictation
+      const frontmostApp = await window.api
+        ?.getFrontmostApp()
+        .catch(() => null);
+      const headers: Record<string, string> = {
+        "Content-Type": "audio/wav",
+      };
+      if (frontmostApp) headers["x-frontmost-app"] = frontmostApp;
+
       const res = await fetch(`${getApiBase()}/api/transcribe`, {
         method: "POST",
         body: wavBlob,
-        headers: { "Content-Type": "audio/wav" },
+        headers,
       });
 
       if (!res.ok) {

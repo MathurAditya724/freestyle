@@ -56,6 +56,35 @@ const api = {
     ipcRenderer.on("hotkey-record:cancel", handler);
     return () => ipcRenderer.removeListener("hotkey-record:cancel", handler);
   },
+  // Auto-updater
+  checkForUpdate: (): Promise<string | null> =>
+    ipcRenderer.invoke("updater:check"),
+  downloadUpdate: (): void => ipcRenderer.send("updater:download"),
+  installUpdate: (): void => ipcRenderer.send("updater:install"),
+  onUpdateAvailable: (
+    callback: (info: { version: string }) => void,
+  ): (() => void) => {
+    const handler = (_: unknown, info: { version: string }): void =>
+      callback(info);
+    ipcRenderer.on("updater:available", handler);
+    return () => ipcRenderer.removeListener("updater:available", handler);
+  },
+  onUpdateDownloaded: (
+    callback: (info: { version: string }) => void,
+  ): (() => void) => {
+    const handler = (_: unknown, info: { version: string }): void =>
+      callback(info);
+    ipcRenderer.on("updater:downloaded", handler);
+    return () => ipcRenderer.removeListener("updater:downloaded", handler);
+  },
+  // Context-aware dictation
+  getFrontmostApp: (): Promise<string | null> =>
+    ipcRenderer.invoke("system:frontmost-app"),
+  // Pill position
+  getPillPosition: (): Promise<string> =>
+    ipcRenderer.invoke("settings:pill-position"),
+  setPillPosition: (position: string): void =>
+    ipcRenderer.send("settings:set-pill-position", position),
 };
 
 // Use `contextBridge` APIs to expose Electron APIs to

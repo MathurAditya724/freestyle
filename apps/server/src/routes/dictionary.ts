@@ -19,6 +19,7 @@ interface DictionaryRow {
   id: number;
   key: string;
   value: string;
+  usage_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -154,6 +155,49 @@ dictionary.delete("/:id", (c) => {
   const id = Number(c.req.param("id"));
   db.prepare("DELETE FROM dictionary WHERE id = ?").run(id);
   return c.json({ ok: true });
+});
+
+// Export all entries as JSON
+dictionary.get("/export/json", (c) => {
+  const db = getDb();
+  const rows = db
+    .prepare("SELECT key, value FROM dictionary ORDER BY key ASC")
+    .all() as { key: string; value: string }[];
+  return c.json(rows);
+});
+
+// Import entries from JSON array
+dictionary.post("/import", async (c) => {
+  const db = getDb();
+  const body = await c.req.json<{ key: string; value: string }[]>();
+
+  if (!Array.isArray(body)) {
+    return c.json(
+      { error: "Expected a JSON array of {key, value} objects" },
+      400,
+    );
+  }
+
+  let imported = 0;
+  let skipped = 0;
+  const insertStmt = db.prepare(
+    "INSERT OR IGNORE INTO dictionary (key, value) VALUES (?, ?)",
+  );
+
+  for (const entry of body) {
+    if (entry.key?.trim() && entry.value?.trim()) {
+      const result = insertStmt.run(
+        entry.key.trim().toLowerCase(),
+        entry.value.trim(),
+      );
+      if (result.changes > 0) imported++;
+      else skipped++;
+    } else {
+      skipped++;
+    }
+  }
+
+  return c.json({ imported, skipped });
 });
 
 export default dictionary;

@@ -25,6 +25,21 @@ declare global {
         callback: (combo: { modifiers: string[]; key: string }) => void,
       ) => () => void;
       onHotkeyRecordCancel: (callback: () => void) => () => void;
+      // Auto-updater
+      checkForUpdate: () => Promise<string | null>;
+      downloadUpdate: () => void;
+      installUpdate: () => void;
+      onUpdateAvailable: (
+        callback: (info: { version: string }) => void,
+      ) => () => void;
+      onUpdateDownloaded: (
+        callback: (info: { version: string }) => void,
+      ) => () => void;
+      // Context-aware dictation
+      getFrontmostApp: () => Promise<string | null>;
+      // Pill position
+      getPillPosition: () => Promise<string>;
+      setPillPosition: (position: string) => void;
     };
   }
 }
