@@ -1,3 +1,8 @@
+import {
+  type CreateDictionaryInput,
+  createDictionarySchema,
+} from "@freestyle/validations";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { getApiBase } from "@renderer/lib/api";
 import { cn } from "@renderer/lib/utils";
 import {
@@ -13,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
 
 interface DictionaryEntry {
   id: number;
@@ -35,9 +41,17 @@ export default function DictionaryPage(): React.JSX.Element {
   // Add/edit form
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formKey, setFormKey] = useState("");
-  const [formValue, setFormValue] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    reset: resetFormValues,
+    formState: { errors: formErrors },
+  } = useForm<CreateDictionaryInput>({
+    resolver: zodResolver(createDictionarySchema),
+    defaultValues: { key: "", value: "" },
+  });
 
   const loadData = useCallback(async () => {
     try {
@@ -70,50 +84,49 @@ export default function DictionaryPage(): React.JSX.Element {
   const resetForm = useCallback(() => {
     setShowForm(false);
     setEditingId(null);
-    setFormKey("");
-    setFormValue("");
     setFormError(null);
-  }, []);
+    resetFormValues({ key: "", value: "" });
+  }, [resetFormValues]);
 
-  const startEdit = useCallback((entry: DictionaryEntry) => {
-    setEditingId(entry.id);
-    setFormKey(entry.key);
-    setFormValue(entry.value);
-    setFormError(null);
-    setShowForm(true);
-  }, []);
+  const startEdit = useCallback(
+    (entry: DictionaryEntry) => {
+      setEditingId(entry.id);
+      setFormError(null);
+      resetFormValues({ key: entry.key, value: entry.value });
+      setShowForm(true);
+    },
+    [resetFormValues],
+  );
 
-  const saveEntry = useCallback(async () => {
-    if (!formKey.trim() || !formValue.trim()) {
-      setFormError("Both key and value are required.");
-      return;
-    }
+  const saveEntry = useCallback(
+    async (data: CreateDictionaryInput) => {
+      setFormError(null);
 
-    setFormError(null);
+      try {
+        const url = editingId
+          ? `${getApiBase()}/api/dictionary/${editingId}`
+          : `${getApiBase()}/api/dictionary`;
 
-    try {
-      const url = editingId
-        ? `${getApiBase()}/api/dictionary/${editingId}`
-        : `${getApiBase()}/api/dictionary`;
+        const res = await fetch(url, {
+          method: editingId ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
 
-      const res = await fetch(url, {
-        method: editingId ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: formKey.trim(), value: formValue.trim() }),
-      });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Failed" }));
+          setFormError(err.error || `HTTP ${res.status}`);
+          return;
+        }
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: "Failed" }));
-        setFormError(data.error || `HTTP ${res.status}`);
-        return;
+        resetForm();
+        loadData();
+      } catch {
+        setFormError("Failed to save entry.");
       }
-
-      resetForm();
-      loadData();
-    } catch {
-      setFormError("Failed to save entry.");
-    }
-  }, [formKey, formValue, editingId, resetForm, loadData]);
+    },
+    [editingId, resetForm, loadData],
+  );
 
   const deleteEntry = useCallback(
     async (id: number) => {
@@ -239,7 +252,10 @@ export default function DictionaryPage(): React.JSX.Element {
 
       {/* Add/Edit Form */}
       {showForm && (
-        <div className="border-border bg-card rounded-lg border p-4">
+        <form
+          onSubmit={handleSubmit(saveEntry)}
+          className="border-border bg-card rounded-lg border p-4"
+        >
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-medium">
               {editingId ? "Edit Entry" : "New Entry"}
@@ -263,11 +279,18 @@ export default function DictionaryPage(): React.JSX.Element {
               <input
                 id="dict-key"
                 type="text"
-                value={formKey}
-                onChange={(e) => setFormKey(e.target.value)}
+                {...register("key")}
                 placeholder='e.g. "my address"'
-                className="border-border bg-background w-full rounded-lg border px-3 py-2 text-sm"
+                className={cn(
+                  "border-border bg-background w-full rounded-lg border px-3 py-2 text-sm",
+                  formErrors.key && "border-destructive",
+                )}
               />
+              {formErrors.key && (
+                <p className="text-destructive mt-1 text-xs">
+                  {formErrors.key.message}
+                </p>
+              )}
             </div>
             <div>
               <label
@@ -278,12 +301,19 @@ export default function DictionaryPage(): React.JSX.Element {
               </label>
               <textarea
                 id="dict-value"
-                value={formValue}
-                onChange={(e) => setFormValue(e.target.value)}
+                {...register("value")}
                 placeholder="e.g. 123 Main St, Springfield, IL 62701"
                 rows={2}
-                className="border-border bg-background w-full resize-none rounded-lg border px-3 py-2 text-sm"
+                className={cn(
+                  "border-border bg-background w-full resize-none rounded-lg border px-3 py-2 text-sm",
+                  formErrors.value && "border-destructive",
+                )}
               />
+              {formErrors.value && (
+                <p className="text-destructive mt-1 text-xs">
+                  {formErrors.value.message}
+                </p>
+              )}
             </div>
             {formError && (
               <p className="text-destructive text-xs">{formError}</p>
@@ -297,15 +327,14 @@ export default function DictionaryPage(): React.JSX.Element {
                 Cancel
               </button>
               <button
-                type="button"
-                onClick={saveEntry}
+                type="submit"
                 className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-3 py-1.5 text-sm font-medium"
               >
                 {editingId ? "Update" : "Add"}
               </button>
             </div>
           </div>
-        </div>
+        </form>
       )}
 
       {/* Entries list */}

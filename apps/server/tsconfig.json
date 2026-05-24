@@ -6,6 +6,10 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "target": "esnext",
-    "types": ["node"]
-  }
+    "types": ["node"],
+    "paths": {
+      "@freestyle/validations": ["../../packages/validations/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*", "../../packages/validations/src/**/*"]
 }

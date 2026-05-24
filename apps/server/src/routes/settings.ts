@@ -1,11 +1,7 @@
+import { settingValueSchema } from "@freestyle/validations";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import { z } from "zod/v4";
 import { getDb } from "../lib/db.js";
-
-const settingValueSchema = z.object({
-  value: z.string(),
-});
 
 const settings = new Hono();
 

@@ -1,12 +1,7 @@
+import { apiKeySchema } from "@freestyle/validations";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import { z } from "zod/v4";
 import { getDb } from "../lib/db.js";
-
-const apiKeySchema = z.object({
-  provider: z.string().min(1, "Provider is required"),
-  key: z.string().min(1, "API key is required"),
-});
 
 const apiKeys = new Hono();
 

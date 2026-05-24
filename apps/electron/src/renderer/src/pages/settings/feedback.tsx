@@ -1,56 +1,62 @@
+import {
+  type FeedbackInput,
+  feedbackSchema,
+  type feedbackTypes,
+} from "@freestyle/validations";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { getApiBase } from "@renderer/lib/api";
 import { cn } from "@renderer/lib/utils";
 import { Check, MessageSquare, Send } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
 
-const feedbackTypes = [
+const typeOptions = [
   { value: "general", label: "General" },
   { value: "bug", label: "Bug Report" },
   { value: "feature", label: "Feature Request" },
 ] as const;
 
 export default function FeedbackPage(): React.JSX.Element {
-  const [message, setMessage] = useState("");
-  const [email, setEmail] = useState("");
-  const [type, setType] = useState<string>("general");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const submit = useCallback(async () => {
-    if (!message.trim()) return;
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    formState: { errors },
+  } = useForm<FeedbackInput>({
+    resolver: zodResolver(feedbackSchema),
+    defaultValues: { message: "", type: "general", email: undefined },
+  });
+
+  const selectedType = watch("type");
+
+  const onSubmit = async (data: FeedbackInput) => {
     setSending(true);
-    setError(null);
-
     try {
       const res = await fetch(`${getApiBase()}/api/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: message.trim(),
-          type,
-          email: email.trim() || undefined,
-        }),
+        body: JSON.stringify(data),
       });
 
       if (!res.ok) {
-        const data = await res
-          .json()
-          .catch(() => ({ error: "Failed to send" }));
-        throw new Error(data.error || `HTTP ${res.status}`);
+        const err = await res.json().catch(() => ({ error: "Failed to send" }));
+        throw new Error(err.error || `HTTP ${res.status}`);
       }
 
       setSent(true);
-      setMessage("");
-      setEmail("");
-      setType("general");
+      reset();
       setTimeout(() => setSent(false), 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send feedback");
+    } catch {
+      // error handled by form
     } finally {
       setSending(false);
     }
-  }, [message, email, type]);
+  };
 
   return (
     <div className="space-y-8">
@@ -61,19 +67,24 @@ export default function FeedbackPage(): React.JSX.Element {
         </p>
       </div>
 
-      <div className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Type selector */}
         <div className="space-y-2">
           <span className="text-sm font-medium">Type</span>
           <div className="flex gap-2">
-            {feedbackTypes.map((option) => (
+            {typeOptions.map((option) => (
               <button
                 key={option.value}
                 type="button"
-                onClick={() => setType(option.value)}
+                onClick={() =>
+                  setValue(
+                    "type",
+                    option.value as (typeof feedbackTypes)[number],
+                  )
+                }
                 className={cn(
                   "rounded-lg border px-3 py-1.5 text-sm transition-colors",
-                  type === option.value
+                  selectedType === option.value
                     ? "border-primary bg-accent text-accent-foreground font-medium"
                     : "border-border text-muted-foreground hover:bg-secondary",
                 )}
@@ -91,12 +102,19 @@ export default function FeedbackPage(): React.JSX.Element {
           </label>
           <textarea
             id="feedback-message"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            {...register("message")}
             placeholder="Tell us what's on your mind..."
             rows={5}
-            className="border-border bg-card text-foreground placeholder:text-muted-foreground w-full resize-none rounded-lg border px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className={cn(
+              "border-border bg-card text-foreground placeholder:text-muted-foreground w-full resize-none rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-1",
+              errors.message
+                ? "border-destructive focus:ring-destructive"
+                : "focus:border-primary focus:ring-primary",
+            )}
           />
+          {errors.message && (
+            <p className="text-destructive text-xs">{errors.message.message}</p>
+          )}
         </div>
 
         {/* Email (optional) */}
@@ -110,21 +128,24 @@ export default function FeedbackPage(): React.JSX.Element {
           <input
             id="feedback-email"
             type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            {...register("email")}
             placeholder="you@example.com"
-            className="border-border bg-card text-foreground placeholder:text-muted-foreground w-full rounded-lg border px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className={cn(
+              "border-border bg-card text-foreground placeholder:text-muted-foreground w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-1",
+              errors.email
+                ? "border-destructive focus:ring-destructive"
+                : "focus:border-primary focus:ring-primary",
+            )}
           />
+          {errors.email && (
+            <p className="text-destructive text-xs">{errors.email.message}</p>
+          )}
         </div>
-
-        {/* Error */}
-        {error && <p className="text-destructive text-sm">{error}</p>}
 
         {/* Submit button */}
         <button
-          type="button"
-          onClick={submit}
-          disabled={!message.trim() || sending}
+          type="submit"
+          disabled={sending}
           className={cn(
             "flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors",
             sent
@@ -149,7 +170,7 @@ export default function FeedbackPage(): React.JSX.Element {
             </>
           )}
         </button>
-      </div>
+      </form>
     </div>
   );
 }

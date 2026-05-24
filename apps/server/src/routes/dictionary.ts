@@ -1,17 +1,10 @@
+import {
+  createDictionarySchema,
+  updateDictionarySchema,
+} from "@freestyle/validations";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import { z } from "zod/v4";
 import { getDb } from "../lib/db.js";
-
-const createSchema = z.object({
-  key: z.string().min(1, "Key is required"),
-  value: z.string().min(1, "Value is required"),
-});
-
-const updateSchema = z.object({
-  key: z.string().min(1).optional(),
-  value: z.string().min(1).optional(),
-});
 
 const dictionary = new Hono();
 
@@ -96,7 +89,7 @@ dictionary.get("/:id", (c) => {
 });
 
 // Create entry
-dictionary.post("/", zValidator("json", createSchema), async (c) => {
+dictionary.post("/", zValidator("json", createDictionarySchema), async (c) => {
   const db = getDb();
   const body = c.req.valid("json");
 
@@ -122,32 +115,36 @@ dictionary.post("/", zValidator("json", createSchema), async (c) => {
 });
 
 // Update entry
-dictionary.put("/:id", zValidator("json", updateSchema), async (c) => {
-  const db = getDb();
-  const id = Number(c.req.param("id"));
-  const body = c.req.valid("json");
+dictionary.put(
+  "/:id",
+  zValidator("json", updateDictionarySchema),
+  async (c) => {
+    const db = getDb();
+    const id = Number(c.req.param("id"));
+    const body = c.req.valid("json");
 
-  const existing = db
-    .prepare("SELECT * FROM dictionary WHERE id = ?")
-    .get(id) as DictionaryRow | undefined;
-  if (!existing) return c.json({ error: "Not found" }, 404);
+    const existing = db
+      .prepare("SELECT * FROM dictionary WHERE id = ?")
+      .get(id) as DictionaryRow | undefined;
+    if (!existing) return c.json({ error: "Not found" }, 404);
 
-  const newKey = body.key?.trim().toLowerCase() ?? existing.key;
-  const newValue = body.value?.trim() ?? existing.value;
+    const newKey = body.key?.trim().toLowerCase() ?? existing.key;
+    const newValue = body.value?.trim() ?? existing.value;
 
-  try {
-    db.prepare(
-      `UPDATE dictionary SET key = ?, value = ?, updated_at = datetime('now') WHERE id = ?`,
-    ).run(newKey, newValue, id);
+    try {
+      db.prepare(
+        `UPDATE dictionary SET key = ?, value = ?, updated_at = datetime('now') WHERE id = ?`,
+      ).run(newKey, newValue, id);
 
-    return c.json({ id, key: newKey, value: newValue });
-  } catch {
-    return c.json(
-      { error: "A dictionary entry with this key already exists" },
-      409,
-    );
-  }
-});
+      return c.json({ id, key: newKey, value: newValue });
+    } catch {
+      return c.json(
+        { error: "A dictionary entry with this key already exists" },
+        409,
+      );
+    }
+  },
+);
 
 // Delete entry
 dictionary.delete("/:id", (c) => {
