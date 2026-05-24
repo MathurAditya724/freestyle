@@ -386,26 +386,41 @@ export default function AppPage(): React.JSX.Element {
             } as React.CSSProperties
           }
         >
+          {/* Persistent orb — never unmounts, only props change */}
+          {state !== "idle" && (
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                overflow: "hidden",
+                flexShrink: 0,
+              }}
+            >
+              <Orb
+                colors={
+                  state === "error"
+                    ? ["#DD6E4E", "#B85C3A"]
+                    : ["#8AB62A", "#6B8F12"]
+                }
+                agentState={
+                  state === "recording"
+                    ? "listening"
+                    : state === "transcribing"
+                      ? "talking"
+                      : null
+                }
+                getInputVolume={
+                  state === "recording" ? getInputVolume : undefined
+                }
+                className="h-full w-full"
+              />
+            </div>
+          )}
+
+          {/* Right-side content changes per state */}
           {state === "recording" && (
             <>
-              <div
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: "50%",
-                  overflow: "hidden",
-                  flexShrink: 0,
-                }}
-              >
-                <Orb
-                  colors={["#8AB62A", "#6B8F12"]}
-                  agentState="listening"
-                  getInputVolume={getInputVolume}
-                  className="h-full w-full"
-                />
-              </div>
-
-              {/* Show partial text if streaming, otherwise show bars */}
               {partialText ? (
                 <span
                   style={{
@@ -449,7 +464,6 @@ export default function AppPage(): React.JSX.Element {
                   })}
                 </svg>
               )}
-
               <span
                 className="mono"
                 style={{
@@ -467,111 +481,60 @@ export default function AppPage(): React.JSX.Element {
           )}
 
           {state === "transcribing" && (
-            <>
-              <div
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: "50%",
-                  overflow: "hidden",
-                  flexShrink: 0,
-                }}
-              >
-                <Orb
-                  colors={["#60A5FA", "#3B82F6"]}
-                  agentState="thinking"
-                  className="h-full w-full"
-                />
-              </div>
-              <span
-                style={{
-                  color: "#a1a1aa",
-                  fontSize: 13,
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  paddingRight: 8,
-                }}
-              >
-                {partialText ? partialText.slice(-30) : "Transcribing..."}
-              </span>
-            </>
+            <span
+              style={{
+                color: "#a1a1aa",
+                fontSize: 13,
+                flex: 1,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                paddingRight: 8,
+              }}
+            >
+              {partialText ? partialText.slice(-30) : "Transcribing..."}
+            </span>
           )}
 
           {state === "pasted" && (
-            <>
-              <div
+            <span
+              style={{
+                color: "#a1a1aa",
+                fontSize: 13,
+                flex: 1,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                paddingRight: 8,
+              }}
+            >
+              <Check
+                size={14}
                 style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: "50%",
-                  overflow: "hidden",
-                  flexShrink: 0,
+                  color: "#8AB62A",
+                  display: "inline",
+                  verticalAlign: "middle",
+                  marginRight: 4,
                 }}
-              >
-                <Orb
-                  colors={["#8AB62A", "#6B8F12"]}
-                  agentState={null}
-                  className="h-full w-full"
-                />
-              </div>
-              <span
-                style={{
-                  color: "#a1a1aa",
-                  fontSize: 13,
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  paddingRight: 8,
-                }}
-              >
-                <Check
-                  size={14}
-                  style={{
-                    color: "#8AB62A",
-                    display: "inline",
-                    verticalAlign: "middle",
-                    marginRight: 4,
-                  }}
-                />
-                {message || "Pasted"}
-              </span>
-            </>
+              />
+              {message || "Pasted"}
+            </span>
           )}
 
           {state === "error" && (
-            <>
-              <div
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: "50%",
-                  overflow: "hidden",
-                  flexShrink: 0,
-                }}
-              >
-                <Orb
-                  colors={["#DD6E4E", "#B85C3A"]}
-                  agentState={null}
-                  className="h-full w-full"
-                />
-              </div>
-              <span
-                style={{
-                  color: "#a1a1aa",
-                  fontSize: 13,
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  paddingRight: 8,
-                }}
-              >
-                {message || "Error"}
-              </span>
-            </>
+            <span
+              style={{
+                color: "#a1a1aa",
+                fontSize: 13,
+                flex: 1,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                paddingRight: 8,
+              }}
+            >
+              {message || "Error"}
+            </span>
           )}
 
           {state === "idle" && (
