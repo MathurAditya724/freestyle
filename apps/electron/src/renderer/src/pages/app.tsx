@@ -361,27 +361,45 @@ export default function AppPage(): React.JSX.Element {
   const gap = svgWidth / BARS;
   const barWidth = Math.min(gap * 0.55, 5);
 
-  const glowColor =
+  // Animated glow uses CSS animation via a class
+  const glowState =
     state === "recording"
-      ? "0 0 24px 6px rgba(107,143,18,0.2), 0 0 48px 12px rgba(107,143,18,0.08)"
-      : state === "error"
-        ? "0 0 24px 6px rgba(221,110,78,0.2)"
+      ? "glow-recording"
+      : state === "transcribing"
+        ? "glow-transcribing"
         : state === "pasted"
-          ? "0 0 24px 6px rgba(107,143,18,0.15)"
-          : "0 0 20px 4px rgba(161,161,170,0.08)";
+          ? "glow-pasted"
+          : state === "error"
+            ? "glow-error"
+            : "glow-idle";
 
   return (
     <div
       className="flex h-screen w-screen items-center justify-center select-none"
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
-      <div
-        style={{
-          borderRadius: 28,
-          boxShadow: glowColor,
-          transition: "box-shadow 300ms ease",
-        }}
-      >
+      <style>
+        {`
+          @keyframes glow-pulse-green {
+            0%, 100% { box-shadow: 0 0 20px 4px rgba(138,182,42,0.15), 0 0 40px 8px rgba(138,182,42,0.06); }
+            50% { box-shadow: 0 0 28px 8px rgba(138,182,42,0.25), 0 0 56px 14px rgba(138,182,42,0.10); }
+          }
+          @keyframes glow-pulse-blue {
+            0%, 100% { box-shadow: 0 0 20px 4px rgba(96,165,250,0.18), 0 0 40px 8px rgba(96,165,250,0.07); }
+            50% { box-shadow: 0 0 28px 8px rgba(96,165,250,0.30), 0 0 56px 14px rgba(96,165,250,0.12); }
+          }
+          @keyframes glow-pulse-red {
+            0%, 100% { box-shadow: 0 0 18px 4px rgba(221,110,78,0.15); }
+            50% { box-shadow: 0 0 24px 6px rgba(221,110,78,0.25); }
+          }
+          .glow-recording { animation: glow-pulse-green 2s ease-in-out infinite; }
+          .glow-transcribing { animation: glow-pulse-blue 1.5s ease-in-out infinite; }
+          .glow-pasted { box-shadow: 0 0 24px 6px rgba(138,182,42,0.15); transition: box-shadow 300ms ease; }
+          .glow-error { animation: glow-pulse-red 1.5s ease-in-out infinite; }
+          .glow-idle { box-shadow: 0 0 16px 3px rgba(161,161,170,0.06); transition: box-shadow 300ms ease; }
+        `}
+      </style>
+      <div className={glowState} style={{ borderRadius: 28 }}>
         <div
           className="inline-flex items-center gap-3"
           style={
@@ -416,7 +434,9 @@ export default function AppPage(): React.JSX.Element {
                 colors={
                   state === "error"
                     ? ["#DD6E4E", "#B85C3A"]
-                    : ["#8AB62A", "#6B8F12"]
+                    : state === "transcribing"
+                      ? ["#60A5FA", "#3B82F6"]
+                      : ["#8AB62A", "#6B8F12"]
                 }
                 agentState={
                   state === "recording"
