@@ -13,7 +13,14 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@renderer/components/ui/sidebar";
-import { Book, Clock, Cpu, MessageSquare, Sliders } from "lucide-react";
+import {
+  Book,
+  Clock,
+  Cpu,
+  FileText,
+  MessageSquare,
+  Sliders,
+} from "lucide-react";
 import { useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router";
 
@@ -26,12 +33,18 @@ const navItems = [
     icon: Book,
     shortcut: "3",
   },
-  { to: "/settings/history", label: "History", icon: Clock, shortcut: "4" },
+  {
+    to: "/settings/formats",
+    label: "Formats",
+    icon: FileText,
+    shortcut: "4",
+  },
+  { to: "/settings/history", label: "History", icon: Clock, shortcut: "5" },
   {
     to: "/settings/feedback",
     label: "Feedback",
     icon: MessageSquare,
-    shortcut: "5",
+    shortcut: "6",
   },
 ];
 

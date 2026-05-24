@@ -11,119 +11,11 @@ import { getModelCost } from "../routes/models.js";
 const transcribeRoute = new Hono();
 
 // ---------------------------------------------------------------------------
-// Context detection
+// Context detection — uses format_rules from DB
 // ---------------------------------------------------------------------------
 
-/** Non-browser app context hints */
-const APP_HINTS: Record<string, string> = {
-  Code: "The user is dictating in VS Code (code editor). Format as clean prose for code comments, commit messages, or documentation. Preserve technical terms.",
-  Cursor:
-    "The user is dictating in Cursor IDE. Format as clean prose for code comments, commit messages, or documentation. Preserve technical terms.",
-  Terminal:
-    "The user is dictating for a terminal command or shell. Keep it extremely concise and direct.",
-  iTerm2:
-    "The user is dictating for a terminal. Keep it extremely concise and direct.",
-  Slack:
-    "The user is writing a Slack message. Keep it conversational, concise, and professional. Use casual punctuation.",
-  Discord:
-    "The user is writing a Discord message. Keep it casual and conversational.",
-  Messages:
-    "The user is writing a text/iMessage. Keep it casual and brief, like a text message.",
-  WhatsApp: "The user is writing a WhatsApp message. Keep it casual and brief.",
-  Telegram:
-    "The user is writing a Telegram message. Keep it casual and conversational.",
-  Mail: "The user is composing an email in Apple Mail. Format as a proper email: start with a greeting if dictated, use clear paragraphs separated by blank lines, maintain a professional yet natural tone, and end with a sign-off if dictated. Keep formatting clean for an email body.",
-  Outlook:
-    "The user is composing an email in Outlook. Format as a proper email: start with a greeting if dictated, use clear paragraphs separated by blank lines, maintain a professional yet natural tone, and end with a sign-off if dictated. Keep formatting clean for an email body.",
-  Notion:
-    "The user is writing in Notion. Format with clear structure, proper paragraphs, and clean markdown-friendly prose.",
-  Pages:
-    "The user is writing a document in Pages. Use proper document formatting.",
-  Word: "The user is writing a document in Word. Use proper document formatting.",
-  Notes:
-    "The user is writing in Apple Notes. Keep it clean and well-structured.",
-  Linear:
-    "The user is writing in Linear (project management). Keep it concise and action-oriented for issues or comments.",
-};
-
-/** URL-based context hints for browser tabs */
-function getBrowserContextFromUrl(url: string, title: string): string | null {
-  try {
-    const hostname = new URL(url).hostname.replace("www.", "");
-
-    // Email
-    const emailHint =
-      "The user is composing an email. Format as a proper email: start with a greeting if the dictation includes one, use clear paragraphs separated by blank lines, maintain a professional yet natural tone, and end with an appropriate sign-off if dictated. Do NOT add a subject line. Keep the formatting clean for an email body.";
-    if (hostname.includes("mail.google.com")) return `${emailHint} (Gmail)`;
-    if (
-      hostname.includes("outlook.live.com") ||
-      hostname.includes("outlook.office")
-    )
-      return `${emailHint} (Outlook)`;
-    if (hostname.includes("mail.yahoo.com")) return `${emailHint} (Yahoo Mail)`;
-    if (hostname.includes("proton.me") || hostname.includes("protonmail.com"))
-      return `${emailHint} (ProtonMail)`;
-
-    // Calendar
-    if (hostname.includes("calendar.google.com"))
-      return "The user is working with Google Calendar, likely writing an event description or note. Keep it concise and structured.";
-
-    // Docs / Writing
-    if (hostname.includes("docs.google.com"))
-      return "The user is writing in Google Docs. Use proper document formatting with clear paragraphs.";
-    if (hostname.includes("notion.so"))
-      return "The user is writing in Notion. Format with clear structure and proper paragraphs.";
-    if (hostname.includes("linear.app"))
-      return "The user is writing in Linear (project management). Keep it concise and action-oriented.";
-
-    // Chat / Social
-    if (hostname.includes("slack.com"))
-      return "The user is writing in Slack (web). Keep it conversational, concise, and professional.";
-    if (hostname.includes("discord.com"))
-      return "The user is writing in Discord (web). Keep it casual and conversational.";
-    if (hostname.includes("web.whatsapp.com"))
-      return "The user is writing in WhatsApp Web. Keep it casual and brief.";
-    if (hostname.includes("x.com") || hostname.includes("twitter.com"))
-      return "The user is composing a post/reply on X (Twitter). Keep it concise (280 chars ideal), punchy, and direct.";
-    if (hostname.includes("linkedin.com"))
-      return "The user is writing on LinkedIn. Keep it professional and well-structured.";
-    if (hostname.includes("reddit.com"))
-      return "The user is writing on Reddit. Match the tone of the subreddit — can be casual or detailed.";
-
-    // Code
-    if (hostname.includes("github.com"))
-      return `The user is on GitHub${title ? ` (${title})` : ""}. Format for issues, PRs, or comments — clear, technical, and well-structured with markdown.`;
-    if (hostname.includes("gitlab.com"))
-      return "The user is on GitLab. Format for issues, MRs, or comments — clear and technical.";
-    if (hostname.includes("stackoverflow.com"))
-      return "The user is on Stack Overflow. Format as a clear technical question or answer.";
-
-    // AI tools
-    if (
-      hostname.includes("chat.openai.com") ||
-      hostname.includes("chatgpt.com")
-    )
-      return "The user is chatting with ChatGPT. Format as a clear, well-structured prompt or message.";
-    if (hostname.includes("claude.ai"))
-      return "The user is chatting with Claude. Format as a clear, well-structured prompt or message.";
-    if (hostname.includes("perplexity.ai"))
-      return "The user is using Perplexity. Format as a clear search query or follow-up question.";
-
-    // Search
-    if (hostname.includes("google.com") && url.includes("/search"))
-      return "The user is typing a Google search query. Keep it as a concise search query, not a full sentence.";
-
-    // Generic browser with a useful title
-    if (title)
-      return `The user is typing in a browser tab: "${title}" (${hostname}). Adapt your formatting to what seems most appropriate for this context.`;
-  } catch {
-    // invalid URL
-  }
-  return null;
-}
-
-/** Build a context hint string from the x-app-context header */
-function getContextHint(rawContext: string | null): string {
+/** Build a context string from the raw x-app-context header for matching */
+function buildMatchContext(rawContext: string | null): string {
   if (!rawContext) return "";
 
   try {
@@ -134,27 +26,54 @@ function getContextHint(rawContext: string | null): string {
       windowTitle?: string;
     };
 
-    // Try URL-based context first (most specific for browsers)
-    if (ctx.url) {
-      const urlHint = getBrowserContextFromUrl(
-        ctx.url,
-        ctx.title ?? ctx.windowTitle ?? "",
-      );
-      if (urlHint) return urlHint;
-    }
+    // Build a combined string for pattern matching
+    const parts: string[] = [];
+    if (ctx.url) parts.push(ctx.url);
+    if (ctx.title) parts.push(ctx.title);
+    if (ctx.windowTitle) parts.push(ctx.windowTitle);
+    if (ctx.app) parts.push(ctx.app);
+    return parts.join(" ");
+  } catch {
+    return rawContext;
+  }
+}
 
-    // Try window title for Firefox (no URL access)
-    if (ctx.windowTitle && ctx.app === "Firefox") {
-      return `The user is typing in Firefox. Tab title: "${ctx.windowTitle}". Adapt formatting to what seems appropriate.`;
-    }
+/** Look up formatting instructions from the format_rules table */
+function getContextHint(
+  rawContext: string | null,
+  db: ReturnType<typeof getDb>,
+): string {
+  if (!rawContext) return "";
 
-    // Fall back to app-level hints
-    if (ctx.app && APP_HINTS[ctx.app]) return APP_HINTS[ctx.app];
+  const matchStr = buildMatchContext(rawContext);
+  if (!matchStr) return "";
+
+  try {
+    // User rules (is_default=0) first, then defaults (is_default=1)
+    const rows = db
+      .prepare(
+        "SELECT app_pattern, instructions FROM format_rules ORDER BY is_default ASC, id DESC",
+      )
+      .all() as { app_pattern: string; instructions: string }[];
+
+    for (const row of rows) {
+      const patterns = row.app_pattern.split("|").map((p) => p.trim());
+      for (const pattern of patterns) {
+        if (pattern && matchStr.toLowerCase().includes(pattern.toLowerCase())) {
+          return row.instructions;
+        }
+      }
+    }
+  } catch {
+    // format_rules table may not exist yet
+  }
+
+  // Fallback: extract app name for a generic hint
+  try {
+    const ctx = JSON.parse(rawContext) as { app?: string };
     if (ctx.app) return `The user is dictating in ${ctx.app}.`;
   } catch {
-    // Not JSON — treat as plain app name (backward compat)
-    if (APP_HINTS[rawContext]) return APP_HINTS[rawContext];
-    return `The user is dictating in ${rawContext}.`;
+    // not JSON
   }
 
   return "";
@@ -188,7 +107,6 @@ transcribeRoute.post("/", async (c) => {
 
   // Get context header (JSON with app, url, title)
   const appContext = c.req.header("x-app-context") ?? null;
-  const contextHint = getContextHint(appContext);
 
   // Get configured models
   const defaults = getDefaultModels();
@@ -203,6 +121,7 @@ transcribeRoute.post("/", async (c) => {
 
   // Step 1: Transcribe
   const db = getDb();
+  const contextHint = getContextHint(appContext, db);
   let rawText: string;
 
   const langSetting = db

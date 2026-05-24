@@ -176,7 +176,7 @@ export default function HistoryPage(): React.JSX.Element {
           />
           <StatCard
             label="Total Cost"
-            value={`$${stats.total_cost_usd.toFixed(4)}`}
+            value={`$${stats.total_cost_usd.toFixed(2)}`}
           />
         </div>
       )}
@@ -339,7 +339,7 @@ function HistoryCard({
               : entry.llm_model}
           </span>
         )}
-        {entry.cost_usd > 0 && <span>${entry.cost_usd.toFixed(4)}</span>}
+        {entry.cost_usd > 0 && <span>${entry.cost_usd.toFixed(2)}</span>}
         <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           <button
             type="button"

@@ -241,6 +241,142 @@ function showPill(): void {
   }
 }
 
+// -- macOS: Get frontmost app + browser tab context via AppleScript --
+function getMacFrontmostApp(): string | null {
+  try {
+    const { execSync } = require("node:child_process");
+    const appName = execSync(
+      `osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'`,
+      { encoding: "utf-8", timeout: 2000 },
+    ).trim();
+
+    // For browsers, try to get the active tab URL and title
+    const chromiumBrowsers = [
+      "Google Chrome",
+      "Arc",
+      "Brave Browser",
+      "Microsoft Edge",
+    ];
+
+    try {
+      if (appName === "Safari") {
+        const result = execSync(
+          `osascript -e 'tell application "Safari" to return {URL of current tab of front window, name of current tab of front window}'`,
+          { encoding: "utf-8", timeout: 2000 },
+        ).trim();
+        const idx = result.indexOf(", ");
+        if (idx > 0) {
+          return JSON.stringify({
+            app: appName,
+            url: result.substring(0, idx),
+            title: result.substring(idx + 2),
+          });
+        }
+      } else if (appName === "Firefox") {
+        const title = execSync(
+          `osascript -e 'tell application "System Events" to get name of front window of application process "Firefox"'`,
+          { encoding: "utf-8", timeout: 2000 },
+        ).trim();
+        return JSON.stringify({ app: appName, windowTitle: title });
+      } else if (chromiumBrowsers.includes(appName)) {
+        const result = execSync(
+          `osascript -e 'tell application "${appName}" to return {URL of active tab of front window, title of active tab of front window}'`,
+          { encoding: "utf-8", timeout: 2000 },
+        ).trim();
+        const idx = result.indexOf(", ");
+        if (idx > 0) {
+          return JSON.stringify({
+            app: appName,
+            url: result.substring(0, idx),
+            title: result.substring(idx + 2),
+          });
+        }
+      }
+    } catch {
+      // Browser tab access failed — fall back to app name only
+    }
+
+    return JSON.stringify({ app: appName });
+  } catch {
+    return null;
+  }
+}
+
+// -- Windows: Get foreground window process name + title via PowerShell --
+function getWindowsFrontmostApp(): string | null {
+  try {
+    const { execSync } = require("node:child_process");
+    // Get foreground window title and process name
+    const script = `
+      Add-Type @"
+        using System;
+        using System.Runtime.InteropServices;
+        using System.Text;
+        public class Win32 {
+          [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+          [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+          [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+        }
+"@
+      $hwnd = [Win32]::GetForegroundWindow()
+      $sb = New-Object System.Text.StringBuilder 256
+      [Win32]::GetWindowText($hwnd, $sb, 256) | Out-Null
+      $title = $sb.ToString()
+      $pid = 0
+      [Win32]::GetWindowThreadProcessId($hwnd, [ref]$pid) | Out-Null
+      $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+      "$($proc.ProcessName)|$title"
+    `;
+    const result = execSync(
+      `powershell -NoProfile -Command "${script.replace(/"/g, '\\"')}"`,
+      { encoding: "utf-8", timeout: 3000 },
+    ).trim();
+
+    const pipeIdx = result.indexOf("|");
+    if (pipeIdx > 0) {
+      const processName = result.substring(0, pipeIdx);
+      const windowTitle = result.substring(pipeIdx + 1);
+      return JSON.stringify({ app: processName, windowTitle });
+    }
+    return JSON.stringify({ app: result });
+  } catch {
+    return null;
+  }
+}
+
+// -- Linux (X11): Get active window name + title via xdotool --
+function getLinuxFrontmostApp(): string | null {
+  try {
+    const { execSync } = require("node:child_process");
+    const windowTitle = execSync("xdotool getactivewindow getwindowname", {
+      encoding: "utf-8",
+      timeout: 2000,
+    }).trim();
+
+    // Try to get the process name
+    let processName = "";
+    try {
+      const pid = execSync("xdotool getactivewindow getwindowpid", {
+        encoding: "utf-8",
+        timeout: 2000,
+      }).trim();
+      processName = execSync(`cat /proc/${pid}/comm`, {
+        encoding: "utf-8",
+        timeout: 1000,
+      }).trim();
+    } catch {
+      // some windows don't expose PID
+    }
+
+    return JSON.stringify({
+      app: processName || "Unknown",
+      windowTitle,
+    });
+  } catch {
+    return null;
+  }
+}
+
 function hidePill(): void {
   if (mainWindow?.isVisible()) {
     mainWindow.hide();
@@ -628,67 +764,20 @@ app.whenReady().then(() => {
 
   // -- Context-aware dictation: get frontmost app + browser context --
   ipcMain.handle("system:frontmost-app", async () => {
-    if (process.platform !== "darwin") return null;
-
     try {
-      const { execSync } = require("node:child_process");
-      const appName = execSync(
-        `osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'`,
-        { encoding: "utf-8" },
-      ).trim();
-
-      // For browsers, try to get the active tab URL and title
-      const browsers = [
-        "Google Chrome",
-        "Safari",
-        "Arc",
-        "Firefox",
-        "Brave Browser",
-        "Microsoft Edge",
-      ];
-
-      if (browsers.includes(appName)) {
-        try {
-          let script: string;
-          if (appName === "Safari") {
-            script = `tell application "Safari" to return {URL of current tab of front window, name of current tab of front window}`;
-          } else if (appName === "Firefox") {
-            // Firefox doesn't support AppleScript tab access well
-            script = `tell application "System Events" to get name of front window of application process "Firefox"`;
-          } else {
-            // Chrome, Arc, Brave, Edge all use Chromium AppleScript
-            script = `tell application "${appName}" to return {URL of active tab of front window, title of active tab of front window}`;
-          }
-
-          const result = execSync(`osascript -e '${script}'`, {
-            encoding: "utf-8",
-            timeout: 2000,
-          }).trim();
-
-          if (appName === "Firefox") {
-            // Firefox only gives window title
-            return JSON.stringify({
-              app: appName,
-              windowTitle: result,
-            });
-          }
-
-          // Parse "url, title" from AppleScript list result
-          const commaIdx = result.indexOf(", ");
-          if (commaIdx > 0) {
-            const url = result.substring(0, commaIdx);
-            const title = result.substring(commaIdx + 2);
-            return JSON.stringify({ app: appName, url, title });
-          }
-        } catch {
-          // Fall back to just app name
-        }
+      if (process.platform === "darwin") {
+        return getMacFrontmostApp();
       }
-
-      return JSON.stringify({ app: appName });
+      if (process.platform === "win32") {
+        return getWindowsFrontmostApp();
+      }
+      if (process.platform === "linux") {
+        return getLinuxFrontmostApp();
+      }
     } catch {
-      return null;
+      // graceful fallback
     }
+    return null;
   });
 
   // -- Pill position setting --

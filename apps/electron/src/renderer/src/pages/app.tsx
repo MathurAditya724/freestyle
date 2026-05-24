@@ -225,6 +225,16 @@ export default function AppPage(): React.JSX.Element {
     // Audio feedback: descending tone on stop
     playTone(660, 100);
 
+    // Skip recordings shorter than 1 second (likely accidental trigger)
+    const recordingDuration = Date.now() - startTimeRef.current;
+    if (recordingDuration < 1000) {
+      recorderRef.current.cancel();
+      streamerRef.current?.cancel();
+      streamerRef.current = null;
+      setState("idle");
+      return;
+    }
+
     const streamer = streamerRef.current;
 
     // If streaming mode is active, just commit via WebSocket

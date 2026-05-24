@@ -3,6 +3,7 @@ import NotFoundPage from "@renderer/pages/not-found";
 import OnboardingPage from "@renderer/pages/onboarding";
 import DictionaryPage from "@renderer/pages/settings/dictionary";
 import FeedbackPage from "@renderer/pages/settings/feedback";
+import FormatsPage from "@renderer/pages/settings/formats";
 import GeneralSettingsPage from "@renderer/pages/settings/general";
 import HistoryPage from "@renderer/pages/settings/history";
 import SettingsLayout from "@renderer/pages/settings/layout";
@@ -20,6 +21,7 @@ export default function App(): React.JSX.Element {
         <Route path="general" element={<GeneralSettingsPage />} />
         <Route path="models" element={<ModelsPage />} />
         <Route path="dictionary" element={<DictionaryPage />} />
+        <Route path="formats" element={<FormatsPage />} />
         <Route path="history" element={<HistoryPage />} />
         <Route path="feedback" element={<FeedbackPage />} />
       </Route>

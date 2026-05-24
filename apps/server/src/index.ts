@@ -4,6 +4,7 @@ import { initSentry } from "./lib/sentry.js";
 import apiKeys from "./routes/api-keys.js";
 import dictionary from "./routes/dictionary.js";
 import feedback from "./routes/feedback.js";
+import formats from "./routes/formats.js";
 import history from "./routes/history.js";
 import models from "./routes/models.js";
 import settings from "./routes/settings.js";
@@ -35,6 +36,7 @@ app.route("/api/models", models);
 app.route("/api/transcribe", transcribe);
 app.route("/api/history", history);
 app.route("/api/dictionary", dictionary);
+app.route("/api/formats", formats);
 app.route("/api/feedback", feedback);
 app.route("/stream", stream);
 

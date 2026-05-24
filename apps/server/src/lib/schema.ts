@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 export function initSchema(db: DatabaseSync): void {
   db.exec(`
@@ -86,6 +86,90 @@ export function initSchema(db: DatabaseSync): void {
       );
     } catch {
       // Column may already exist
+    }
+  }
+
+  if (currentVersion < 5) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS format_rules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        app_pattern TEXT NOT NULL,
+        label TEXT NOT NULL,
+        instructions TEXT NOT NULL,
+        is_default INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+
+    // Seed default format rules
+    const count = db
+      .prepare("SELECT COUNT(*) as c FROM format_rules")
+      .get() as { c: number };
+    if (count.c === 0) {
+      const defaults = [
+        [
+          "mail.google.com|outlook|yahoo.com|proton",
+          "Email",
+          "Format as a proper email body: use greeting if dictated, clear paragraphs separated by blank lines, professional tone, sign-off if dictated. No subject line.",
+          1,
+        ],
+        [
+          "slack.com|Slack",
+          "Slack",
+          "Conversational, concise, professional. Casual punctuation.",
+          1,
+        ],
+        [
+          "discord.com|Discord",
+          "Discord",
+          "Casual and conversational tone.",
+          1,
+        ],
+        [
+          "github.com|GitLab",
+          "Code Platform",
+          "Clear, technical, well-structured with markdown.",
+          1,
+        ],
+        [
+          "docs.google.com|notion.so|Notion",
+          "Document",
+          "Proper document formatting with clear paragraphs and structure.",
+          1,
+        ],
+        [
+          "Code|Cursor|Terminal|iTerm",
+          "Code Editor",
+          "Clean prose for code comments, commits, or documentation. Preserve technical terms.",
+          1,
+        ],
+        [
+          "Messages|WhatsApp|Telegram",
+          "Messaging",
+          "Casual and brief, like a text message.",
+          1,
+        ],
+        [
+          "x.com|twitter.com",
+          "X/Twitter",
+          "Concise (280 chars ideal), punchy, and direct.",
+          1,
+        ],
+        ["linkedin.com", "LinkedIn", "Professional and well-structured.", 1],
+        [
+          "chatgpt.com|claude.ai|perplexity",
+          "AI Chat",
+          "Clear, well-structured prompt or message.",
+          1,
+        ],
+      ];
+      const stmt = db.prepare(
+        "INSERT INTO format_rules (app_pattern, label, instructions, is_default) VALUES (?, ?, ?, ?)",
+      );
+      for (const [pattern, label, instructions, isDefault] of defaults) {
+        stmt.run(pattern, label, instructions, isDefault);
+      }
     }
   }
 
